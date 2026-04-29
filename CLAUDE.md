@@ -61,7 +61,7 @@ processfox/
 ├── package.json
 ├── vite.config.ts
 ├── tsconfig.json
-├── tailwind.config.ts
+├── tailwind.config.js
 ├── index.html
 ├── src/                            # Frontend (React + TS)
 │   ├── main.tsx
@@ -72,6 +72,8 @@ processfox/
 │   │   │                           # ToolCallChip, ReasoningChip
 │   │   ├── filetree/               # FileTree (react-arborist)
 │   │   ├── preview/                # PreviewPane für Datei-Vorschau
+│   │   ├── settings/               # ModelsTab, CloudApisTab
+│   │   ├── theme-provider.tsx
 │   │   └── ui/                     # shadcn-Bausteine
 │   ├── views/
 │   │   ├── Main.tsx
@@ -103,6 +105,7 @@ processfox/
 │       │   ├── agent.rs
 │       │   ├── chat.rs
 │       │   ├── file.rs             # list/watch/unwatch agent folder
+│       │   ├── mod.rs
 │       │   ├── models.rs
 │       │   ├── secrets.rs
 │       │   ├── settings.rs
@@ -146,6 +149,10 @@ processfox/
 │   └── skills/
 │       ├── SKILL_TEMPLATE.md
 │       └── <skill-name>.md
+├── assets/                         # Marketing-Assets, App-Icons (nicht im Bundle)
+├── benchmarks/                     # Mess-Skripte für LLM-Runtime-Vergleiche
+├── public/                         # statische Assets fürs Vite-Frontend
+├── landing/                        # gitignored, separat synchronisiert
 └── .github/
     └── workflows/
         └── release.yml

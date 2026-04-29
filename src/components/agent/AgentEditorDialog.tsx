@@ -82,7 +82,18 @@ export function AgentEditorDialog({
     if (!isOpen) return;
     settingsApi.get().then(setSettings).catch(console.error);
     modelsApi.listInstalled().then(setInstalled).catch(console.error);
-    skillsApi.list().then(setAvailableSkills).catch(console.error);
+    skillsApi
+      .list()
+      .then((list) => {
+        setAvailableSkills(list);
+        // New agents start with every available skill enabled — the
+        // sidebar no longer surfaces per-skill toggles, so the default
+        // needs to be "everything works out of the box".
+        if (mode === "create") {
+          setActiveSkills(list.map((s) => s.name));
+        }
+      })
+      .catch(console.error);
     if (mode === "edit" && agent) {
       setName(agent.name);
       setIcon(agent.icon);

@@ -67,3 +67,6 @@ models/downloads/
 .local/
 scratch/
 tmp/
+
+# Landing-Page (separat synchronisiert, nicht Teil des App-Repos)
+landing/

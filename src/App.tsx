@@ -7,12 +7,11 @@ import { resolveAgentModel, useAgentChat } from "@/hooks/useAgentChat";
 import { Main } from "@/views/Main";
 import { SettingsDialog } from "@/views/Settings";
 import { WelcomeDialog } from "@/views/Welcome";
-import { agentApi, fileApi, modelsApi, secretsApi, settingsApi, skillsApi } from "@/lib/tauri";
+import { agentApi, fileApi, modelsApi, secretsApi, settingsApi } from "@/lib/tauri";
 import { pickStarterPrompts } from "@/lib/starterPrompts";
 import type { Agent } from "@/types/agent";
 import type { InstalledModel } from "@/types/models";
 import type { Settings } from "@/types/settings";
-import type { Skill } from "@/types/skill";
 
 type SelectedFile = { path: string; name: string } | null;
 
@@ -35,7 +34,6 @@ function AppShell() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [installedModels, setInstalledModels] = useState<InstalledModel[]>([]);
-  const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedFile, setSelectedFile] = useState<SelectedFile>(null);
   const [fileTreeRefresh, setFileTreeRefresh] = useState(0);
 
@@ -85,10 +83,6 @@ function AppShell() {
     const s = await settingsApi.get();
     setSettings(s);
     return s;
-  }, []);
-
-  useEffect(() => {
-    skillsApi.list().then(setSkills).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -286,7 +280,6 @@ function AppShell() {
         chatDisabledReason={chatDisabledReason}
         starterPrompts={starterPrompts}
         inputPrefill={inputPrefill}
-        skills={skills}
         fileTreeRefresh={fileTreeRefresh}
         onSelectAgent={handleSelectAgent}
         onCreateAgent={handleCreateAgent}

@@ -1,5 +1,4 @@
 import { AgentSwitcher } from "@/components/agent/AgentSwitcher";
-import { SkillIconRow } from "@/components/agent/SkillIconRow";
 import { ChatPane } from "@/components/chat/ChatPane";
 import type { StarterPrompt } from "@/lib/starterPrompts";
 import { FileTree } from "@/components/filetree/FileTree";
@@ -12,7 +11,6 @@ import {
 import type { PendingToolCall } from "@/hooks/useAgentChat";
 import type { Agent } from "@/types/agent";
 import type { ChatMessage, PendingHitl, PendingQuestion } from "@/types/chat";
-import type { Skill } from "@/types/skill";
 
 type Props = {
   agents: Agent[];
@@ -30,7 +28,6 @@ type Props = {
   chatDisabledReason: string | undefined;
   starterPrompts: StarterPrompt[];
   inputPrefill?: { text: string; token: number };
-  skills: Skill[];
   fileTreeRefresh: number;
   onSelectAgent: (agent: Agent) => void;
   onCreateAgent: () => void;
@@ -63,7 +60,6 @@ export function Main({
   chatDisabledReason,
   starterPrompts,
   inputPrefill,
-  skills,
   fileTreeRefresh,
   onSelectAgent,
   onCreateAgent,
@@ -96,7 +92,6 @@ export function Main({
             onEdit={onEditAgent}
             onOpenSettings={onOpenSettings}
           />
-          <SkillIconRow activeSkillNames={activeAgent?.skills ?? []} skills={skills} />
           <div className="flex-1 overflow-hidden border-t border-border">
             <FileTree
               agentId={activeAgent?.id ?? null}
