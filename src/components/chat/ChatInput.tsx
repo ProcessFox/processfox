@@ -169,7 +169,7 @@ function AttachmentButton({
   // on the right. Color: warning (amber, with a soft tint) when no path is set
   // or after auto-clear, muted-foreground when valid.
   const tone = hasAttachment
-    ? "text-muted-foreground hover:bg-accent/60"
+    ? "text-muted-foreground bg-muted hover:bg-accent/60"
     : "text-warning bg-warning/10 hover:bg-warning/20";
   const tooltipText = hasAttachment
     ? `${config.label}: ${fileName}`
