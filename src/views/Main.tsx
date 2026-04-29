@@ -30,6 +30,7 @@ type Props = {
   inputPrefill?: { text: string; token: number };
   acceptsAttachments: string[];
   onAgentUpdated: (agent: Agent) => void;
+  chatFooter?: { templateName: string | null; model: string | null };
   fileTreeRefresh: number;
   onSelectAgent: (agent: Agent) => void;
   onCreateAgent: () => void;
@@ -64,6 +65,7 @@ export function Main({
   inputPrefill,
   acceptsAttachments,
   onAgentUpdated,
+  chatFooter,
   fileTreeRefresh,
   onSelectAgent,
   onCreateAgent,
@@ -140,6 +142,7 @@ export function Main({
           agent={activeAgent}
           acceptsAttachments={acceptsAttachments}
           onAgentUpdated={onAgentUpdated}
+          footer={chatFooter}
           onSend={onSendMessage}
           onCancel={onCancelRun}
           onApproveHitl={onApproveHitl}

@@ -5,7 +5,7 @@ import {
   type NodeRendererProps,
   type TreeApi,
 } from "react-arborist";
-import { ChevronRight, Folder, FolderOpen } from "lucide-react";
+import { Folder, FolderOpen } from "lucide-react";
 
 import { iconForFile } from "@/lib/fileIcons";
 import { fileApi } from "@/lib/tauri";
@@ -225,9 +225,34 @@ export function FileTree({
     onSelectFile,
   ]);
 
+  const showRoot = Boolean(agentId && hasFolder && agentFolder);
+
   return (
-    <div ref={containerRef} className="h-full w-full overflow-hidden">
-      {content}
+    <div className="flex h-full w-full flex-col overflow-hidden p-2">
+      {showRoot && agentFolder && <RootRow folderPath={agentFolder} />}
+      <div
+        ref={containerRef}
+        className={cn("flex-1 overflow-hidden", showRoot && "pl-3")}
+      >
+        {content}
+      </div>
+    </div>
+  );
+}
+
+/** Header row above the tree showing the agent's working directory.
+ *  Same Folder icon as subfolders so it reads as the parent of what's below;
+ *  the tree contents get a small left padding to make the parent/child
+ *  relationship visible. Non-interactive for now. */
+function RootRow({ folderPath }: { folderPath: string }) {
+  const name = folderPath.split(/[/\\]/).filter(Boolean).pop() ?? folderPath;
+  return (
+    <div
+      className="flex h-[26px] items-center gap-1.5 px-2 text-sm text-foreground"
+      title={folderPath}
+    >
+      <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
     </div>
   );
 }
@@ -252,16 +277,6 @@ function Node({
         else node.activate();
       }}
     >
-      {isDir ? (
-        <ChevronRight
-          className={cn(
-            "h-3 w-3 shrink-0 text-muted-foreground transition-transform",
-            node.isOpen && "rotate-90",
-          )}
-        />
-      ) : (
-        <span className="inline-block w-3" />
-      )}
       {isDir ? (
         node.isOpen ? (
           <FolderOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />

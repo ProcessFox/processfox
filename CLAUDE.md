@@ -3,11 +3,14 @@
 Dieses Dokument richtet sich an Claude Code (und an alle anderen LLM-gestützten Codier-Assistenten), die an ProcessFox mitarbeiten. Es fasst Projekt-Kontext, Tech-Stack, Code-Stil-Regeln und Architektur-Prinzipien so zusammen, dass Entscheidungen konsistent mit der Produkt-Vision bleiben.
 
 **Pflicht-Lektüre vor jedem größeren Task:**
-- [`CONCEPT.md`](CONCEPT.md) — vollständige Produkt-Vision und Architektur
-- [`docs/architecture.md`](docs/architecture.md) — technische Architekturskizze
-- [`docs/roadmap.md`](docs/roadmap.md) — aktuelle Phase
-- [`LLM_COMPATIBILITY.md`](LLM_COMPATIBILITY.md) — welche lokalen Modelle ProcessFox laden kann und welche Anforderungen sie erfüllen müssen (Format, Architektur, Chat-Template, Tool-Calling). Konsultieren bevor du Modelle in den Catalog aufnimmst oder Custom-URL-Empfehlungen formulierst.
-- Die relevante `docs/skills/<skill>.md`, wenn du an einem Skill arbeitest
+- [`CONCEPT.md`](CONCEPT.md) — vollständige Produkt-Vision und Architektur (bleibt im App-Repo, intern)
+- Architektur, Roadmap, Skill-Dokus und LLM-Kompatibilität liegen im **Landing-Repo** unter `landing/src/content/docs/docs/`. Das `landing/`-Verzeichnis ist im App-Repo gitignored und wird separat synchronisiert — wenn es lokal vorhanden ist, lies direkt von dort:
+  - `landing/src/content/docs/docs/entwickler/architektur.md` — technische Architekturskizze
+  - `landing/src/content/docs/docs/entwickler/roadmap.md` — aktuelle Phase
+  - `landing/src/content/docs/docs/entwickler/eigenen-skill-bauen.md` — SKILL.md-Template + Konventionen
+  - `landing/src/content/docs/docs/modelle/kompatibilitaet.md` — welche lokalen Modelle ProcessFox laden kann (Format, Architektur, Chat-Template, Tool-Calling). Konsultieren, bevor du Modelle in den Catalog aufnimmst oder Custom-URL-Empfehlungen formulierst.
+  - `landing/src/content/docs/docs/skills/<skill>.md` — wenn du an einem konkreten Skill arbeitest
+- Wenn `landing/` nicht lokal liegt, ist die gleiche Doku öffentlich unter `https://www.processfox.ai/docs/` erreichbar.
 
 ## 1. Projekt-Kurzprofil
 
@@ -55,7 +58,6 @@ processfox/
 ├── README.md
 ├── CONCEPT.md
 ├── CLAUDE.md                       # dieses Dokument
-├── LLM_COMPATIBILITY.md
 ├── LICENSE
 ├── .gitignore
 ├── package.json
@@ -143,20 +145,18 @@ processfox/
 │           │       └── ask_user.rs
 │           ├── types.rs
 │           └── watcher.rs          # notify-debouncer-mini Folder-Watch
-├── docs/
-│   ├── architecture.md
-│   ├── roadmap.md
-│   └── skills/
-│       ├── SKILL_TEMPLATE.md
-│       └── <skill-name>.md
 ├── assets/                         # Marketing-Assets, App-Icons (nicht im Bundle)
 ├── benchmarks/                     # Mess-Skripte für LLM-Runtime-Vergleiche
 ├── public/                         # statische Assets fürs Vite-Frontend
 ├── landing/                        # gitignored, separat synchronisiert
+│                                   # — Astro-/Starlight-Projekt für www.processfox.ai
+│                                   # — enthält Architektur-, Roadmap-, Skill- und Modell-Doku
 └── .github/
     └── workflows/
         └── release.yml
 ```
+
+> **`docs/` existiert nicht mehr im App-Repo.** Architektur, Roadmap, Skill-Dokus und LLM-Kompatibilität sind in das `landing/`-Verzeichnis (Astro-/Starlight-Doku) gewandert; `LLM_COMPATIBILITY.md` ebenfalls. `CONCEPT.md` bleibt als interne Vision im Repo-Root.
 
 ## 5. Wichtige Schnittstellen-Konventionen
 
@@ -231,7 +231,7 @@ Zusätzlich: Symlink-Escape-Prävention durch `canonicalize`; Denylist für spez
 
 - **Code:** Englisch (Variablen, Funktionsnamen, Kommentare, Git-Commit-Messages).
 - **UI-Strings:** Deutsch (in v1 fest verdrahtet, keine i18n-Library nötig — aber so strukturiert, dass i18n später nachrüstbar ist; z. B. ein `src/lib/strings.ts` mit Keys).
-- **Dokumentation im Repo:** Deutsch (die CONCEPT.md, dieses Dokument, docs/* — der Owner ist deutschsprachig und Beta-Tester ebenfalls).
+- **Dokumentation im Repo:** Deutsch (CONCEPT.md, dieses Dokument). Die öffentliche Doku im `landing/`-Repo ist ebenfalls deutsch — der Owner ist deutschsprachig und Beta-Tester:innen ebenfalls.
 - **SKILL.md-Bodies:** Englisch. Standard-Hinweis im Prompt: "Respond in the user's language."
 
 ## 9. Commit- und PR-Konventionen
@@ -259,7 +259,7 @@ Zusätzlich: Symlink-Escape-Prävention durch `canonicalize`; Denylist für spez
 
 ## 12. Release-Prozess (Kurz)
 
-1. Alle Akzeptanzkriterien der aktuellen Phase (`docs/roadmap.md`) sind erfüllt.
+1. Alle Akzeptanzkriterien der aktuellen Phase (Roadmap unter `landing/src/content/docs/docs/entwickler/roadmap.md` bzw. `https://www.processfox.ai/docs/entwickler/roadmap/`) sind erfüllt.
 2. Version in `package.json` und `src-tauri/tauri.conf.json` bumpen.
 3. Tag setzen (`git tag v0.x.y`) und pushen.
 4. GitHub Actions `release.yml` baut Mac / Windows / Linux und pusht Artefakte an GitHub Release.

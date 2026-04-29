@@ -17,9 +17,10 @@ import {
 } from "@/lib/tauri";
 import { pickStarterPrompts } from "@/lib/starterPrompts";
 import type { Agent } from "@/types/agent";
-import type { InstalledModel } from "@/types/models";
+import type { CatalogEntry, InstalledModel } from "@/types/models";
 import type { Settings } from "@/types/settings";
 import type { Skill } from "@/types/skill";
+import type { EffectiveModel } from "@/hooks/useAgentChat";
 
 type SelectedFile = { path: string; name: string } | null;
 
@@ -42,6 +43,7 @@ function AppShell() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [installedModels, setInstalledModels] = useState<InstalledModel[]>([]);
+  const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedFile, setSelectedFile] = useState<SelectedFile>(null);
   const [fileTreeRefresh, setFileTreeRefresh] = useState(0);
@@ -83,6 +85,21 @@ function AppShell() {
     [activeAgent, settings],
   );
 
+  // Footer line inside the chat: template name (if attached) + active model.
+  // The template is only meaningful while document-from-template is on; the
+  // backend already auto-clears the path when the skill is removed, so a
+  // present `templatePath` implies the skill is active.
+  const chatFooter = useMemo(() => {
+    if (!activeAgent) return undefined;
+    const templatePath = activeAgent.attachments?.templatePath ?? null;
+    const templateName = templatePath
+      ? (templatePath.split(/[/\\]/).pop() ?? templatePath)
+      : null;
+    const model = displayModelName(effectiveModel, installedModels, catalog);
+    if (!templateName && !model) return undefined;
+    return { templateName, model };
+  }, [activeAgent, effectiveModel, installedModels, catalog]);
+
   const chat = useAgentChat(activeAgent, effectiveModel);
 
   const handleSendMessage = useCallback(
@@ -109,6 +126,9 @@ function AppShell() {
 
   useEffect(() => {
     skillsApi.list().then(setSkills).catch(console.error);
+    // Catalog is small, immutable per release, and used for friendly model
+    // names across the app — load once at mount and keep it.
+    modelsApi.listCatalog().then(setCatalog).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -340,6 +360,7 @@ function AppShell() {
         inputPrefill={inputPrefill}
         acceptsAttachments={acceptsAttachments}
         onAgentUpdated={handleAgentUpdated}
+        chatFooter={chatFooter}
         fileTreeRefresh={fileTreeRefresh}
         onSelectAgent={handleSelectAgent}
         onCreateAgent={handleCreateAgent}
@@ -385,4 +406,23 @@ function AppShell() {
       />
     </div>
   );
+}
+
+/** Friendly label for a resolved model. Local: catalog title when known,
+ *  otherwise the GGUF filename without extension. Cloud: the provider's
+ *  raw model id — they're already human-readable and rotate too often to
+ *  hand-curate. */
+function displayModelName(
+  model: EffectiveModel | null,
+  installed: InstalledModel[],
+  catalog: CatalogEntry[],
+): string | null {
+  if (!model) return null;
+  if (model.provider !== "local") return model.modelId;
+  const match = installed.find((m) => m.filename === model.modelId);
+  if (match?.catalogId) {
+    const entry = catalog.find((c) => c.id === match.catalogId);
+    if (entry) return entry.title;
+  }
+  return model.modelId.replace(/\.gguf$/i, "");
 }

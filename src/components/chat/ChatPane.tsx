@@ -29,6 +29,7 @@ type Props = {
   agent?: Agent | null;
   acceptsAttachments?: string[];
   onAgentUpdated?: (agent: Agent) => void;
+  footer?: { templateName: string | null; model: string | null };
   onSend: (text: string) => void;
   onCancel: () => void;
   onApproveHitl: () => void;
@@ -55,6 +56,7 @@ export function ChatPane({
   agent,
   acceptsAttachments,
   onAgentUpdated,
+  footer,
   onSend,
   onCancel,
   onApproveHitl,
@@ -225,6 +227,7 @@ export function ChatPane({
         agent={agent ?? null}
         acceptsAttachments={acceptsAttachments}
         onAgentUpdated={onAgentUpdated}
+        footer={footer}
       />
     </div>
   );

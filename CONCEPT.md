@@ -224,7 +224,7 @@ Der Body der SKILL.md enthält die englische Anleitung für das Modell, typische
 
 ## 8. Skill-Inventar v1 (9 Skills)
 
-Siehe `docs/skills/*.md` für die vollen Definitionen. Kurzübersicht:
+Volle Skill-Definitionen liegen in der öffentlichen Doku unter [www.processfox.ai/docs/skills](https://www.processfox.ai/docs/skills/) (Quell-Markdowns: `landing/src/content/docs/docs/skills/`). Kurzübersicht:
 
 ### Lesende Skills
 

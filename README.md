@@ -24,7 +24,11 @@ Die App orientiert sich am Bedien-Paradigma von Obsidian: linke Sidebar mit Date
 
 ## Status
 
-Sehr früh. v1.0-Konzept steht, Entwicklung beginnt. Siehe [CONCEPT.md](CONCEPT.md) für die vollständige Vision und [docs/roadmap.md](docs/roadmap.md) für die Phasen.
+Phasen 1–4 sind abgeschlossen, Phase 5 (Polish & Onboarding) ist weit fortgeschritten. Siehe [CONCEPT.md](CONCEPT.md) für die vollständige Vision und die [Roadmap auf www.processfox.ai/docs](https://www.processfox.ai/docs/entwickler/roadmap/) für die Phasen.
+
+## Dokumentation
+
+Architektur, Skill-Beschreibungen und LLM-Kompatibilität leben in der Doku-Webseite unter [www.processfox.ai/docs](https://www.processfox.ai/docs/). Die Quell-Markdowns liegen im separaten Landing-Repo (lokal: `landing/src/content/docs/docs/`, im App-Repo gitignored).
 
 ## Schnellstart für Mitentwickler
 

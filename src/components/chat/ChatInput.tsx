@@ -28,6 +28,10 @@ type Props = {
   /** Called after a successful attachment write so the parent can refresh
    *  its agent state. */
   onAgentUpdated?: (agent: Agent) => void;
+  /** Quiet status line shown below the input (template + model). Rendered
+   *  inside the same surface band so it looks like part of the input area,
+   *  not a separate footer panel. */
+  footer?: { templateName: string | null; model: string | null };
 };
 
 const ATTACHMENT_CONFIG: Record<
@@ -49,6 +53,7 @@ export function ChatInput({
   agent,
   acceptsAttachments,
   onAgentUpdated,
+  footer,
 }: Props) {
   const [value, setValue] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -121,6 +126,26 @@ export function ChatInput({
           <ArrowUp className="h-3.5 w-3.5" />
         </Button>
       </div>
+      {footer && (footer.templateName || footer.model) && (
+        <div className="mt-1 flex items-center justify-end gap-2 text-[11px] text-muted-foreground">
+          {footer.templateName && (
+            <>
+              <span
+                className="min-w-0 truncate"
+                title={`Vorlage: ${footer.templateName}`}
+              >
+                Vorlage: {footer.templateName}
+              </span>
+              {footer.model && <span className="opacity-40">·</span>}
+            </>
+          )}
+          {footer.model && (
+            <span className="shrink-0" title={`Modell: ${footer.model}`}>
+              {footer.model}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
