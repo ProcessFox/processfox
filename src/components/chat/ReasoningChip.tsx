@@ -1,6 +1,7 @@
 import { Brain, ChevronRight, Loader2 } from "lucide-react";
 import { useState } from "react";
 
+import { MessageMarkdown } from "@/components/chat/MessageMarkdown";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -38,9 +39,9 @@ export function ReasoningChip({ text, streaming }: Props) {
         )}
       </button>
       {(expanded || streaming) && canExpand && (
-        <pre className="mt-1 max-h-64 overflow-auto rounded-sm bg-background/60 p-1.5 text-xs whitespace-pre-wrap font-mono">
-          {text}
-        </pre>
+        <div className="mt-1 max-h-64 overflow-auto rounded-sm bg-background/60 p-1.5 text-muted-foreground">
+          <MessageMarkdown text={text} className="text-xs leading-[17px]" />
+        </div>
       )}
     </div>
   );

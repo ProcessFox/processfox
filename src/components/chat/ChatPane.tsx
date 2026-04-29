@@ -6,6 +6,7 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { fileApi } from "@/lib/tauri";
 import type { StarterPrompt } from "@/lib/starterPrompts";
 import { HitlCard } from "@/components/chat/HitlCard";
+import { MessageMarkdown } from "@/components/chat/MessageMarkdown";
 import { ReasoningChip } from "@/components/chat/ReasoningChip";
 import { ToolCallChip } from "@/components/chat/ToolCallChip";
 import { Button } from "@/components/ui/button";
@@ -334,8 +335,8 @@ function AssistantBubble({ text }: { text: string }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <div className="max-w-[85%] whitespace-pre-wrap rounded-md bg-muted px-3 py-2 text-sm text-foreground">
-        {text}
+      <div className="max-w-[85%] rounded-md bg-muted px-3 py-2 text-sm text-foreground">
+        <MessageMarkdown text={text} />
       </div>
       <button
         onClick={onCopy}
@@ -357,8 +358,8 @@ function AssistantBubble({ text }: { text: string }) {
 function StreamingBubble({ text }: { text: string }) {
   return (
     <div className="flex justify-start">
-      <div className="max-w-[85%] whitespace-pre-wrap rounded-md bg-muted px-3 py-2 text-sm text-foreground">
-        {text}
+      <div className="max-w-[85%] rounded-md bg-muted px-3 py-2 text-sm text-foreground">
+        <MessageMarkdown text={text} />
         <span className="ml-0.5 inline-block h-3 w-1 translate-y-0.5 animate-pulse bg-foreground/60" />
       </div>
     </div>
