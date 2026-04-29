@@ -116,6 +116,7 @@ export function Main({
         <>
           <ResizablePanel defaultSize={38} minSize={20}>
             <PreviewPane
+              agentId={activeAgent?.id ?? null}
               fileName={selectedFile?.name ?? null}
               filePath={selectedFile?.path ?? null}
               onClose={onClosePreview}

@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::time::SystemTime;
 
 use serde::Serialize;
 use tauri::{AppHandle, State};
@@ -7,12 +8,33 @@ use crate::core::error::{CommandError, CoreError};
 use crate::core::sandbox::ensure_in_agent_folder;
 use crate::state::AppState;
 
+/// Hard cap for editor reads. Anything bigger is almost certainly not a
+/// human-edited text file and the editor would choke on it anyway. We let
+/// the user open it externally instead.
+const MAX_TEXT_FILE_BYTES: u64 = 5 * 1024 * 1024;
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileEntry {
     pub name: String,
     pub path: PathBuf,
     pub is_dir: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextFileContent {
+    pub content: String,
+    /// Modification time in milliseconds since the UNIX epoch. Used by the
+    /// editor as an optimistic-concurrency token: a write only succeeds if
+    /// the file's mtime still matches what we last read.
+    pub mtime: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextWriteResult {
+    pub mtime: u64,
 }
 
 /// List the contents of the given agent's folder (one level, sorted:
@@ -162,6 +184,96 @@ fn unique_target_in(folder: &std::path::Path, name: &str) -> PathBuf {
         }
     }
     candidate
+}
+
+/// Read a UTF-8 text file from inside the agent folder. Returns the content
+/// plus the file's modification time, which the editor uses as an
+/// optimistic-concurrency token on save.
+#[tauri::command]
+pub async fn read_text_file(
+    agent_id: String,
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<TextFileContent, CommandError> {
+    let folder = agent_folder(&agent_id, &state)?;
+    let safe = ensure_in_agent_folder(&folder, &PathBuf::from(&path))?;
+
+    let metadata = std::fs::metadata(&safe).map_err(CoreError::from)?;
+    if metadata.len() > MAX_TEXT_FILE_BYTES {
+        return Err(CommandError::new(
+            "file_too_large",
+            "Diese Datei ist zu groß für den Editor.",
+        ));
+    }
+
+    let content = std::fs::read_to_string(&safe).map_err(|e| {
+        // read_to_string fails for non-UTF-8 files. Surface that as a
+        // dedicated code so the UI can show a friendly fallback.
+        if e.kind() == std::io::ErrorKind::InvalidData {
+            CommandError::new("not_utf8", "Diese Datei ist nicht in UTF-8 codiert.")
+        } else {
+            CommandError::from(CoreError::from(e))
+        }
+    })?;
+
+    Ok(TextFileContent {
+        content,
+        mtime: mtime_millis(&metadata),
+    })
+}
+
+/// Write a UTF-8 text file inside the agent folder. The caller passes the
+/// `expected_mtime` from the last read; if the file has been modified since
+/// then (e.g. by an LLM tool call), we refuse and return a `mtime_conflict`
+/// error so the UI can offer to reload.
+#[tauri::command]
+pub async fn write_text_file(
+    agent_id: String,
+    path: String,
+    content: String,
+    expected_mtime: u64,
+    state: State<'_, AppState>,
+) -> Result<TextWriteResult, CommandError> {
+    let folder = agent_folder(&agent_id, &state)?;
+    let safe = ensure_in_agent_folder(&folder, &PathBuf::from(&path))?;
+
+    let metadata = std::fs::metadata(&safe).map_err(CoreError::from)?;
+    let current_mtime = mtime_millis(&metadata);
+    if current_mtime != expected_mtime {
+        return Err(CommandError::new(
+            "mtime_conflict",
+            "Datei wurde extern geändert.",
+        ));
+    }
+
+    std::fs::write(&safe, content.as_bytes()).map_err(CoreError::from)?;
+    let new_metadata = std::fs::metadata(&safe).map_err(CoreError::from)?;
+    Ok(TextWriteResult {
+        mtime: mtime_millis(&new_metadata),
+    })
+}
+
+fn agent_folder(agent_id: &str, state: &AppState) -> Result<PathBuf, CommandError> {
+    let agent = state.agent_repo().get(agent_id)?;
+    agent.folder.ok_or_else(|| {
+        CommandError::new(
+            "agent_has_no_folder",
+            "Für diesen Agenten ist kein Ordner konfiguriert.",
+        )
+    })
+}
+
+/// Convert a fs metadata's modification time to milliseconds since UNIX_EPOCH.
+/// Falls back to 0 on platforms / filesystems that don't expose mtime — that
+/// effectively disables the conflict check on those, which is fine: better to
+/// allow saves than to lock the user out.
+fn mtime_millis(metadata: &std::fs::Metadata) -> u64 {
+    metadata
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 /// Reveal the daily log directory in Finder/Explorer/Files. Wired to the

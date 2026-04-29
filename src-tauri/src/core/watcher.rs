@@ -1,10 +1,10 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use notify::RecursiveMode;
 use notify_debouncer_mini::{new_debouncer, DebounceEventResult, Debouncer};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::core::agent::AgentRepo;
 use crate::core::error::{CoreError, CoreResult};
@@ -19,9 +19,19 @@ use crate::core::sandbox::ensure_in_agent_folder;
 /// In addition, every debounce tick prunes attachments whose underlying file
 /// is gone (rename/delete) — when something is dropped, we emit a separate
 /// `"agent-attachments-changed"` event with the affected agent id.
+///
+/// The watcher also keeps the asset-protocol scope synchronized with the
+/// active agent's folder. The frontend uses `convertFileSrc()` to render
+/// images and PDFs directly from disk; that only works for paths the asset
+/// protocol has been told to allow. We allow the new agent's folder here
+/// and revoke the previous one, so the scope reflects exactly the agent
+/// the user is currently viewing.
 #[derive(Clone)]
 pub struct FolderWatcher {
     inner: Arc<Mutex<Option<Debouncer<notify::RecommendedWatcher>>>>,
+    /// The folder currently allowed in the asset-protocol scope. Tracked
+    /// here so we can revoke it before granting the next one.
+    scoped: Arc<Mutex<Option<PathBuf>>>,
     app: AppHandle,
 }
 
@@ -35,6 +45,7 @@ impl FolderWatcher {
     pub fn new(app: AppHandle) -> Self {
         Self {
             inner: Arc::new(Mutex::new(None)),
+            scoped: Arc::new(Mutex::new(None)),
             app,
         }
     }
@@ -70,12 +81,43 @@ impl FolderWatcher {
             .lock()
             .map_err(|_| CoreError::Llm("watcher mutex poisoned".to_string()))?;
         *guard = Some(debouncer);
+        drop(guard);
+
+        self.set_scope(Some(path));
         Ok(())
     }
 
     pub fn unwatch(&self) {
         if let Ok(mut guard) = self.inner.lock() {
             *guard = None;
+        }
+        self.set_scope(None);
+    }
+
+    /// Flip the asset-protocol scope: revoke the previously-allowed folder
+    /// (if any) and allow the new one. Best-effort — if the scope plumbing
+    /// fails for any reason (e.g. canonicalization), we log and move on,
+    /// because the rest of the app still works without `convertFileSrc()`.
+    fn set_scope(&self, new_path: Option<&Path>) {
+        let Ok(mut current) = self.scoped.lock() else {
+            return;
+        };
+        let scope = self.app.asset_protocol_scope();
+
+        if let Some(prev) = current.take() {
+            if let Err(e) = scope.forbid_directory(&prev, true) {
+                tracing::warn!(error = %e, path = %prev.display(), "asset scope forbid failed");
+            }
+        }
+        if let Some(new_path) = new_path {
+            match scope.allow_directory(new_path, true) {
+                Ok(()) => {
+                    *current = Some(new_path.to_path_buf());
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, path = %new_path.display(), "asset scope allow failed");
+                }
+            }
         }
     }
 }

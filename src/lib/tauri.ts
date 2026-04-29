@@ -35,6 +35,51 @@ export const agentApi = {
     listen<string>("agent-attachments-changed", (evt) => handler(evt.payload)),
 };
 
+export interface TextFileContent {
+  content: string;
+  /** Modification time in ms since UNIX epoch — pass back unchanged on save
+   *  so the backend can detect external modifications. */
+  mtime: number;
+}
+
+export interface TextWriteResult {
+  mtime: number;
+}
+
+export interface DocxPreview {
+  /** Sanitised body-only HTML — render in an iframe with `sandbox=""`. */
+  html: string;
+}
+
+export interface XlsxPreview {
+  sheets: string[];
+  activeSheet: string;
+  rows: string[][];
+  totalRows: number;
+  totalCols: number;
+  truncated: boolean;
+}
+
+export interface SlidePreview {
+  index: number;
+  title: string | null;
+  body: string[];
+  notes: string[];
+}
+
+export interface PptxPreview {
+  slides: SlidePreview[];
+}
+
+export const previewApi = {
+  docx: (agentId: string, path: string) =>
+    invoke<DocxPreview>("preview_docx", { agentId, path }),
+  xlsx: (agentId: string, path: string, sheet?: string) =>
+    invoke<XlsxPreview>("preview_xlsx", { agentId, path, sheet }),
+  pptx: (agentId: string, path: string) =>
+    invoke<PptxPreview>("preview_pptx", { agentId, path }),
+};
+
 export const fileApi = {
   listAgentFolder: (agentId: string, subPath?: string) =>
     invoke<FileEntry[]>("list_agent_folder", { agentId, subPath }),
@@ -44,6 +89,20 @@ export const fileApi = {
   openLogsFolder: () => invoke<void>("open_logs_folder"),
   importFilesToAgent: (agentId: string, paths: string[]) =>
     invoke<string[]>("import_files_to_agent", { agentId, paths }),
+  readTextFile: (agentId: string, path: string) =>
+    invoke<TextFileContent>("read_text_file", { agentId, path }),
+  writeTextFile: (
+    agentId: string,
+    path: string,
+    content: string,
+    expectedMtime: number,
+  ) =>
+    invoke<TextWriteResult>("write_text_file", {
+      agentId,
+      path,
+      content,
+      expectedMtime,
+    }),
   /** Subscribe to FS-changed pings emitted by the watcher. The payload
    *  is empty `()`; callers should use it as a signal to refresh. */
   subscribeFsChanged: (handler: () => void): Promise<UnlistenFn> =>

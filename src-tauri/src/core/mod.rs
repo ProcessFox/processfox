@@ -4,6 +4,7 @@ pub mod error;
 pub mod hardware;
 pub mod llm;
 pub mod models;
+pub mod preview;
 pub mod sandbox;
 pub mod secrets;
 pub mod settings;
