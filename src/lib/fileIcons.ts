@@ -8,6 +8,7 @@ import {
   FileText,
   FileType,
   FileVideo,
+  Monitor,
   type LucideIcon,
 } from "lucide-react";
 
@@ -30,6 +31,11 @@ const EXT_ICONS: Record<string, LucideIcon> = {
   tsv: FileSpreadsheet,
   // PDF
   pdf: FileType,
+  // Presentations
+  pptx: Monitor,
+  ppt: Monitor,
+  odp: Monitor,
+  key: Monitor,
   // Code / structured data
   json: FileCode,
   yaml: FileCode,
