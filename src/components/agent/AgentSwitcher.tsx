@@ -1,4 +1,4 @@
-import { ChevronsUpDown, Plus, Settings2, Pencil } from "lucide-react";
+import { ChevronsUpDown, Plus, Settings, Settings2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { DynamicIcon } from "@/components/ui/DynamicIcon";
@@ -86,7 +86,7 @@ export function AgentSwitcher({
         disabled={!activeAgent}
         title="Agent bearbeiten"
       >
-        <Pencil className="h-3.5 w-3.5" />
+        <Settings2 className="h-3.5 w-3.5" />
       </Button>
       <Button
         variant="ghost"
@@ -95,7 +95,7 @@ export function AgentSwitcher({
         onClick={onOpenSettings}
         title="Einstellungen"
       >
-        <Settings2 className="h-3.5 w-3.5" />
+        <Settings className="h-3.5 w-3.5" />
       </Button>
     </div>
   );

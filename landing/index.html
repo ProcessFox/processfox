@@ -4,6 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ProcessFox — [Platzhalter Tagline]</title>
+    <meta name="description" content="ProcessFox — lokale KI-Agenten für deinen Mac und PC. [Platzhalter — bitte anpassen]" />
+    <meta name="theme-color" content="#ffffff" />
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="128x128" href="icons/favicon-128.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png" />
+    <link rel="apple-touch-icon" sizes="256x256" href="icons/apple-touch-icon.png" />
+
+    <!-- Open Graph / Social -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="ProcessFox — [Platzhalter Tagline]" />
+    <meta property="og:description" content="Lokale KI-Agenten für deinen Mac und PC. [Platzhalter — bitte anpassen]" />
+    <meta property="og:image" content="icons/icon-512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <!-- TODO: dediziertes OG-Image (1200x630) unter landing/og-image.png ablegen und hier einsetzen -->
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ProcessFox — [Platzhalter Tagline]" />
+    <meta name="twitter:description" content="Lokale KI-Agenten für deinen Mac und PC. [Platzhalter — bitte anpassen]" />
+    <meta name="twitter:image" content="icons/icon-512.png" />
+
     <link
       rel="stylesheet"
       href="https://rsms.me/inter/inter.css"
@@ -98,13 +122,8 @@
       .brand-mark {
         width: 22px;
         height: 22px;
-        border-radius: 6px;
-        background: linear-gradient(
-          135deg,
-          var(--primary) 0%,
-          hsl(258 60% 62%) 100%
-        );
         display: inline-block;
+        object-fit: contain;
       }
       .nav-links {
         display: flex;
@@ -1295,7 +1314,7 @@
     <header class="nav">
       <div class="container nav-inner">
         <a class="brand" href="#">
-          <span class="brand-mark" aria-hidden="true"></span>
+          <img class="brand-mark" src="icons/icon-512.png" alt="" aria-hidden="true" />
           ProcessFox
         </a>
         <nav class="nav-links">
