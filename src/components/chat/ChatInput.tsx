@@ -166,9 +166,11 @@ function AttachmentButton({
   }
 
   // Ghost variant on the left, distinct from the filled primary Send button
-  // on the right. Color: warning when no path is set (or after auto-clear),
-  // muted-foreground when valid.
-  const tone = hasAttachment ? "text-muted-foreground" : "text-warning";
+  // on the right. Color: warning (amber, with a soft tint) when no path is set
+  // or after auto-clear, muted-foreground when valid.
+  const tone = hasAttachment
+    ? "text-muted-foreground hover:bg-accent/60"
+    : "text-warning bg-warning/10 hover:bg-warning/20";
   const tooltipText = hasAttachment
     ? `${config.label}: ${fileName}`
     : `${config.label} wählen`;
@@ -180,7 +182,7 @@ function AttachmentButton({
           type="button"
           onClick={handlePick}
           aria-label={tooltipText}
-          className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-accent/60 ${tone}`}
+          className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${tone}`}
         >
           <FileStack className="h-3.5 w-3.5" />
         </button>

@@ -22,7 +22,9 @@ pub struct Skill {
     /// Attachment slots this skill consumes. The frontend uses this to decide
     /// whether to surface the attachment button on the chat input. Currently
     /// recognised values: `"template"`. Unknown values are ignored.
-    #[serde(default)]
+    /// `alias` lets the SKILL.md author keep the YAML-natural snake_case form
+    /// even though the struct itself is camelCase-renamed for the TS bridge.
+    #[serde(default, alias = "accepts_attachments")]
     pub accepts_attachments: Vec<String>,
     #[serde(default = "default_language")]
     pub language: String,
