@@ -6,6 +6,12 @@ export interface SkillSetting {
   hitl?: boolean;
 }
 
+export interface AgentAttachments {
+  templatePath?: string | null;
+}
+
+export type AttachmentKind = "template";
+
 export interface Agent {
   id: string;
   name: string;
@@ -16,6 +22,7 @@ export interface Agent {
   skills: string[];
   skillSettings: Record<string, SkillSetting>;
   hitlDisabled: boolean;
+  attachments: AgentAttachments;
   createdAt: string;
   updatedAt: string;
 }

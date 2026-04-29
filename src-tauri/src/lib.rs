@@ -115,6 +115,7 @@ pub fn run() {
             commands::agent::create_agent,
             commands::agent::update_agent,
             commands::agent::delete_agent,
+            commands::agent::set_agent_attachment,
             commands::file::list_agent_folder,
             commands::file::watch_agent_folder,
             commands::file::unwatch_agent_folder,

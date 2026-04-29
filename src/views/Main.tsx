@@ -28,6 +28,8 @@ type Props = {
   chatDisabledReason: string | undefined;
   starterPrompts: StarterPrompt[];
   inputPrefill?: { text: string; token: number };
+  acceptsAttachments: string[];
+  onAgentUpdated: (agent: Agent) => void;
   fileTreeRefresh: number;
   onSelectAgent: (agent: Agent) => void;
   onCreateAgent: () => void;
@@ -60,6 +62,8 @@ export function Main({
   chatDisabledReason,
   starterPrompts,
   inputPrefill,
+  acceptsAttachments,
+  onAgentUpdated,
   fileTreeRefresh,
   onSelectAgent,
   onCreateAgent,
@@ -133,6 +137,9 @@ export function Main({
           disabledReason={chatDisabledReason}
           starterPrompts={starterPrompts}
           inputPrefill={inputPrefill}
+          agent={activeAgent}
+          acceptsAttachments={acceptsAttachments}
+          onAgentUpdated={onAgentUpdated}
           onSend={onSendMessage}
           onCancel={onCancelRun}
           onApproveHitl={onApproveHitl}

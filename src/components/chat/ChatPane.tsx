@@ -10,6 +10,7 @@ import { ReasoningChip } from "@/components/chat/ReasoningChip";
 import { ToolCallChip } from "@/components/chat/ToolCallChip";
 import { Button } from "@/components/ui/button";
 import type { PendingToolCall } from "@/hooks/useAgentChat";
+import type { Agent } from "@/types/agent";
 import type { ChatMessage, PendingHitl, PendingQuestion } from "@/types/chat";
 
 type Props = {
@@ -25,6 +26,9 @@ type Props = {
   disabledReason?: string;
   starterPrompts?: StarterPrompt[];
   inputPrefill?: { text: string; token: number };
+  agent?: Agent | null;
+  acceptsAttachments?: string[];
+  onAgentUpdated?: (agent: Agent) => void;
   onSend: (text: string) => void;
   onCancel: () => void;
   onApproveHitl: () => void;
@@ -48,6 +52,9 @@ export function ChatPane({
   disabledReason,
   starterPrompts,
   inputPrefill,
+  agent,
+  acceptsAttachments,
+  onAgentUpdated,
   onSend,
   onCancel,
   onApproveHitl,
@@ -215,6 +222,9 @@ export function ChatPane({
         disabledReason={disabledReason}
         onSend={onSend}
         prefill={inputPrefill}
+        agent={agent ?? null}
+        acceptsAttachments={acceptsAttachments}
+        onAgentUpdated={onAgentUpdated}
       />
     </div>
   );

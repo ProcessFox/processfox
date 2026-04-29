@@ -20,6 +20,41 @@ pub struct SkillSetting {
     pub hitl: Option<bool>,
 }
 
+/// Agent-scoped attachments. Persistent across sends (the user picked the
+/// file once); cleared automatically when the file is renamed/removed or
+/// when the relevant skill is disabled. Generic on purpose — today only
+/// `template_path` is wired, later we can add tables, references, etc.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentAttachments {
+    #[serde(default)]
+    pub template_path: Option<PathBuf>,
+}
+
+impl AgentAttachments {
+    pub fn is_empty(&self) -> bool {
+        self.template_path.is_none()
+    }
+}
+
+/// Identifier the frontend uses to address a specific attachment slot.
+/// Kept as a small enum so adding new kinds later doesn't risk typos.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AttachmentKind {
+    Template,
+}
+
+impl AttachmentKind {
+    /// The skill this attachment kind is meaningful for. When the skill is
+    /// removed from the agent, the attachment is auto-cleared.
+    pub fn required_skill(self) -> &'static str {
+        match self {
+            AttachmentKind::Template => "document-from-template",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Agent {
@@ -38,6 +73,8 @@ pub struct Agent {
     /// the user trusts to act unattended.
     #[serde(default)]
     pub hitl_disabled: bool,
+    #[serde(default)]
+    pub attachments: AgentAttachments,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -94,6 +131,7 @@ impl Agent {
             skills: draft.skills,
             skill_settings: Default::default(),
             hitl_disabled: draft.hitl_disabled,
+            attachments: AgentAttachments::default(),
             created_at: now.clone(),
             updated_at: now,
         }
@@ -117,11 +155,36 @@ impl Agent {
         }
         if let Some(v) = update.skills {
             self.skills = v;
+            // If the skill that owns an attachment was removed, drop the
+            // attachment too — leaving stale paths around would confuse the
+            // user and the system prompt.
+            if !self
+                .skills
+                .iter()
+                .any(|s| s == AttachmentKind::Template.required_skill())
+            {
+                self.attachments.template_path = None;
+            }
         }
         if let Some(v) = update.hitl_disabled {
             self.hitl_disabled = v;
         }
         self.updated_at = Utc::now().to_rfc3339();
+    }
+
+    /// Set or clear a single attachment slot. Caller is responsible for
+    /// having validated the path against the agent folder beforehand.
+    pub fn set_attachment(&mut self, kind: AttachmentKind, path: Option<PathBuf>) {
+        match kind {
+            AttachmentKind::Template => self.attachments.template_path = path,
+        }
+        self.updated_at = Utc::now().to_rfc3339();
+    }
+
+    pub fn attachment(&self, kind: AttachmentKind) -> Option<&PathBuf> {
+        match kind {
+            AttachmentKind::Template => self.attachments.template_path.as_ref(),
+        }
     }
 }
 

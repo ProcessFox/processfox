@@ -19,6 +19,11 @@ pub struct Skill {
     pub tools: Vec<String>,
     #[serde(default)]
     pub hitl: SkillHitl,
+    /// Attachment slots this skill consumes. The frontend uses this to decide
+    /// whether to surface the attachment button on the chat input. Currently
+    /// recognised values: `"template"`. Unknown values are ignored.
+    #[serde(default)]
+    pub accepts_attachments: Vec<String>,
     #[serde(default = "default_language")]
     pub language: String,
     /// Prompt body (the Markdown below the frontmatter), used by the prompt

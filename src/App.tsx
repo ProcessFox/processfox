@@ -7,11 +7,19 @@ import { resolveAgentModel, useAgentChat } from "@/hooks/useAgentChat";
 import { Main } from "@/views/Main";
 import { SettingsDialog } from "@/views/Settings";
 import { WelcomeDialog } from "@/views/Welcome";
-import { agentApi, fileApi, modelsApi, secretsApi, settingsApi } from "@/lib/tauri";
+import {
+  agentApi,
+  fileApi,
+  modelsApi,
+  secretsApi,
+  settingsApi,
+  skillsApi,
+} from "@/lib/tauri";
 import { pickStarterPrompts } from "@/lib/starterPrompts";
 import type { Agent } from "@/types/agent";
 import type { InstalledModel } from "@/types/models";
 import type { Settings } from "@/types/settings";
+import type { Skill } from "@/types/skill";
 
 type SelectedFile = { path: string; name: string } | null;
 
@@ -34,6 +42,7 @@ function AppShell() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [installedModels, setInstalledModels] = useState<InstalledModel[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedFile, setSelectedFile] = useState<SelectedFile>(null);
   const [fileTreeRefresh, setFileTreeRefresh] = useState(0);
 
@@ -55,6 +64,19 @@ function AppShell() {
     () => pickStarterPrompts(activeAgent?.skills ?? []),
     [activeAgent],
   );
+
+  // Union of `accepts_attachments` across the agent's enabled skills. Drives
+  // whether the ChatInput renders an attachment button.
+  const acceptsAttachments = useMemo(() => {
+    if (!activeAgent) return [] as string[];
+    const set = new Set<string>();
+    for (const name of activeAgent.skills) {
+      const skill = skills.find((s) => s.name === name);
+      if (!skill) continue;
+      for (const k of skill.acceptsAttachments ?? []) set.add(k);
+    }
+    return Array.from(set);
+  }, [activeAgent, skills]);
 
   const effectiveModel = useMemo(
     () => resolveAgentModel(activeAgent, settings),
@@ -86,12 +108,43 @@ function AppShell() {
   }, []);
 
   useEffect(() => {
+    skillsApi.list().then(setSkills).catch(console.error);
+  }, []);
+
+  useEffect(() => {
     Promise.all([refreshAgents(), refreshSettings()])
       .then(([list]) => {
         if (list.length > 0) setActiveAgent(list[0]);
       })
       .catch((e) => console.error("initial load failed", e));
   }, [refreshAgents, refreshSettings]);
+
+  // Watcher fires when an agent's attachment was auto-cleared because the
+  // file disappeared. Refresh the affected agent so the icon flips to warn.
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    agentApi
+      .subscribeAttachmentsChanged((agentId) => {
+        agentApi
+          .get(agentId)
+          .then((updated) => {
+            setAgents((prev) =>
+              prev.map((a) => (a.id === updated.id ? updated : a)),
+            );
+            setActiveAgent((curr) =>
+              curr && curr.id === updated.id ? updated : curr,
+            );
+          })
+          .catch((e) => console.warn("agent refresh after attachment-change failed", e));
+      })
+      .then((u) => {
+        unlisten = u;
+      })
+      .catch((e) => console.warn("attachment-changed subscribe failed", e));
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
 
   const showWelcome = settings !== null && !settings.firstRunDone;
 
@@ -158,6 +211,11 @@ function AppShell() {
     },
     [refreshAgents],
   );
+
+  const handleAgentUpdated = useCallback((updated: Agent) => {
+    setAgents((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+    setActiveAgent((curr) => (curr && curr.id === updated.id ? updated : curr));
+  }, []);
 
   const handleSelectFile = useCallback((path: string, name: string) => {
     setSelectedFile({ path, name });
@@ -280,6 +338,8 @@ function AppShell() {
         chatDisabledReason={chatDisabledReason}
         starterPrompts={starterPrompts}
         inputPrefill={inputPrefill}
+        acceptsAttachments={acceptsAttachments}
+        onAgentUpdated={handleAgentUpdated}
         fileTreeRefresh={fileTreeRefresh}
         onSelectAgent={handleSelectAgent}
         onCreateAgent={handleCreateAgent}

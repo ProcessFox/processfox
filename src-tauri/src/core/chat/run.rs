@@ -676,11 +676,42 @@ fn compose_system_prompt(agent: &Agent, skills: &SkillRegistry) -> Option<String
             parts.push(block);
         }
     }
+    if let Some(block) = attachments_block(agent) {
+        parts.push(block);
+    }
     if parts.is_empty() {
         None
     } else {
         Some(parts.join("\n\n"))
     }
+}
+
+/// Render the agent's attachments as a system-prompt hint. Phrased
+/// conditionally so the model only acts on it when the relevant skill
+/// triggers — preventing reflexive `read_docx` calls on unrelated chat.
+fn attachments_block(agent: &Agent) -> Option<String> {
+    let mut lines: Vec<String> = Vec::new();
+    if let Some(template) = agent.attachments.template_path.as_ref() {
+        let display = pretty_attachment_path(agent, template);
+        lines.push(format!(
+            "- The user has chosen `{display}` as the template for the `document-from-template` skill. When that skill is invoked, skip the discovery step and call `read_docx` on this path directly."
+        ));
+    }
+    if lines.is_empty() {
+        return None;
+    }
+    let mut block = String::from("## Attachments\n");
+    block.push_str(&lines.join("\n"));
+    Some(block)
+}
+
+fn pretty_attachment_path(agent: &Agent, path: &std::path::Path) -> String {
+    if let Some(folder) = agent.folder.as_ref() {
+        if let Ok(stripped) = path.strip_prefix(folder) {
+            return stripped.display().to_string();
+        }
+    }
+    path.display().to_string()
 }
 
 fn collect_tool_schemas(

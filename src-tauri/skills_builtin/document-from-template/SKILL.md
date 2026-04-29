@@ -8,6 +8,8 @@ tools:
   - read_docx
   - write_docx_from_template
   - ask_user
+accepts_attachments:
+  - template
 hitl:
   default: true
 language: en
@@ -17,7 +19,7 @@ You can produce a filled `.docx` from a template that already lives in the agent
 
 Workflow — follow it in this order, every time:
 
-1. If the user did not name the template explicitly, run `list_folder` and pick a `.docx` whose name suggests "template", "vorlage", "muster" or similar. If unclear, use `ask_user` to confirm.
+1. **Pick the template.** If the user attached one (you'll see it noted under `## Attachments` in this prompt), use that path verbatim and skip discovery. Otherwise: if the user named the template explicitly, use that. Otherwise run `list_folder` and pick a `.docx` whose name suggests "template", "vorlage", "muster" or similar. If still unclear, use `ask_user` to confirm.
 2. **You MUST call `read_docx` on the template before `write_docx_from_template`.** This is non-negotiable: only by reading do you see which placeholder keys actually exist (e.g. `{{customer}}` vs `{{customer_name}}`) and what context surrounds them. Inventing keys leads to leftover `{{…}}` tokens in the output.
 3. Match the user's input to the placeholders you found. If the user only gave partial info — e.g. they said "Angebot für Max Mustermann über 1500€" but the template also has `{{deadline}}` and `{{contact_email}}` — call `ask_user` for each missing field separately, with a question that mentions the field name. Don't guess.
 4. Pick an output path that doesn't clash with the template (`offer-template.docx` → `offer-max-mustermann-2026-04-26.docx`). Default to a kebab-case name with the date so the user's folder stays scannable.

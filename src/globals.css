@@ -35,6 +35,9 @@
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
     --ring: 231 57% 60%;
 
     --radius: 6px;
@@ -70,6 +73,9 @@
 
     --destructive: 0 63% 52%;
     --destructive-foreground: 0 0% 100%;
+
+    --warning: 38 90% 55%;
+    --warning-foreground: 0 0% 100%;
 
     --ring: 231 57% 65%;
 

@@ -1,7 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-import type { Agent, AgentDraft, AgentUpdate } from "@/types/agent";
+import type {
+  Agent,
+  AgentDraft,
+  AgentUpdate,
+  AttachmentKind,
+} from "@/types/agent";
 import type { ChatMessage, RunEvent, RunStarted } from "@/types/chat";
 import type { FileEntry } from "@/types/file";
 import type {
@@ -20,6 +25,14 @@ export const agentApi = {
   update: (id: string, update: AgentUpdate) =>
     invoke<Agent>("update_agent", { id, update }),
   delete: (id: string) => invoke<void>("delete_agent", { id }),
+  setAttachment: (agentId: string, kind: AttachmentKind, path: string | null) =>
+    invoke<Agent>("set_agent_attachment", { agentId, kind, path }),
+  /** Watcher fires this when an agent's attachment was auto-cleared because
+   *  the underlying file disappeared. Payload is the affected agent id. */
+  subscribeAttachmentsChanged: (
+    handler: (agentId: string) => void,
+  ): Promise<UnlistenFn> =>
+    listen<string>("agent-attachments-changed", (evt) => handler(evt.payload)),
 };
 
 export const fileApi = {

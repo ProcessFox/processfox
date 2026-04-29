@@ -85,7 +85,8 @@ pub async fn watch_agent_folder(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), CommandError> {
-    let agent = state.agent_repo().get(&agent_id)?;
+    let repo = state.agent_repo();
+    let agent = repo.get(&agent_id)?;
     let folder = agent.folder.ok_or_else(|| {
         CommandError::new(
             "agent_has_no_folder",
@@ -94,7 +95,7 @@ pub async fn watch_agent_folder(
     })?;
     state
         .folder_watcher(&app)
-        .watch(&folder)
+        .watch(&folder, agent_id, repo)
         .map_err(CommandError::from)?;
     Ok(())
 }

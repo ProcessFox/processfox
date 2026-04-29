@@ -12,4 +12,5 @@ export interface Skill {
   hitl: SkillHitl;
   language: string;
   body: string;
+  acceptsAttachments: string[];
 }
