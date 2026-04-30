@@ -102,11 +102,9 @@ fn walk(xml: &str) -> CoreResult<String> {
                 let qname = e.name();
                 handle_empty(&mut s, local_name(qname.as_ref()), e);
             }
-            Ok(Event::Text(e)) => {
-                if s.in_text {
-                    let raw = e.unescape().unwrap_or_default();
-                    s.run_html.push_str(&escape_html(&raw));
-                }
+            Ok(Event::Text(e)) if s.in_text => {
+                let raw = e.unescape().unwrap_or_default();
+                s.run_html.push_str(&escape_html(&raw));
             }
             Ok(Event::End(ref e)) => {
                 let qname = e.name();
@@ -135,10 +133,8 @@ fn handle_start(s: &mut State, name: &[u8], _e: &BytesStart) {
             s.para_html.clear();
         }
         b"pPr" => s.in_para_props = true,
-        b"numPr" => {
-            if s.in_para_props {
-                s.para_is_list = true;
-            }
+        b"numPr" if s.in_para_props => {
+            s.para_is_list = true;
         }
         b"r" => {
             s.run_bold = false;
@@ -167,15 +163,11 @@ fn handle_empty(s: &mut State, name: &[u8], e: &BytesStart) {
             s.para_style = attr_val(e, b"w:val").or_else(|| attr_val(e, b"val"));
         }
         b"numPr" if s.in_para_props => s.para_is_list = true,
-        b"b" if s.in_run_props => {
-            if !is_disabled_toggle(e) {
-                s.run_bold = true;
-            }
+        b"b" if s.in_run_props && !is_disabled_toggle(e) => {
+            s.run_bold = true;
         }
-        b"i" if s.in_run_props => {
-            if !is_disabled_toggle(e) {
-                s.run_italic = true;
-            }
+        b"i" if s.in_run_props && !is_disabled_toggle(e) => {
+            s.run_italic = true;
         }
         b"u" if s.in_run_props => {
             // `<w:u w:val="none">` disables underline; anything else (or no

@@ -53,7 +53,7 @@ impl InstalledScanner {
                 catalog_id,
             });
         }
-        results.sort_by(|a, b| a.filename.to_lowercase().cmp(&b.filename.to_lowercase()));
+        results.sort_by_key(|m| m.filename.to_lowercase());
         Ok(results)
     }
 
