@@ -89,6 +89,22 @@ pub struct GenerateRequest {
     pub temperature: Option<f32>,
 }
 
+/// Token-usage numbers reported by a provider for a single generation.
+/// `cached_input_tokens` and `cache_creation_input_tokens` are only populated
+/// by providers that surface prompt-cache statistics (Anthropic always; OpenAI
+/// reports `cached_input_tokens` only). Local inference reports exact prompt
+/// and output counts.
+#[derive(Debug, Clone, Copy, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenUsage {
+    pub input_tokens: u32,
+    pub output_tokens: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cached_input_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_creation_input_tokens: Option<u32>,
+}
+
 /// Events emitted by a provider during a single generation.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
@@ -104,6 +120,10 @@ pub enum LlmEvent {
         text: String,
     },
     ToolCall(ToolCall),
+    /// Token-usage report. Providers emit this at most once per generation,
+    /// just before the terminal `Finish`. Some providers don't emit it at all
+    /// (older OpenAI-compat backends without `stream_options` support).
+    Usage(TokenUsage),
     Finish {
         reason: FinishReason,
     },

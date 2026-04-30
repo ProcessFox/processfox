@@ -177,9 +177,19 @@ processfox/
 
 - Trait `LlmProvider` mit async `generate(request, sink, cancel) -> CoreResult<()>`. Streamt `LlmEvent`s über einen `mpsc::Sender`, respektiert `CancellationToken`.
 - Implementierungen: `LocalGgufProvider` (llama-cpp-2), `AnthropicProvider`, `OpenAiProvider`, `OpenRouterProvider`.
-- Einheitliches Event-Format: `TextDelta`, `ReasoningDelta` (für `<|channel>thought` u. ä.), `ToolCall`, `Finish { reason }`, `Error { code, message }`.
+- Einheitliches Event-Format: `TextDelta`, `ReasoningDelta` (für `<|channel>thought` u. ä.), `ToolCall`, `Usage(TokenUsage)`, `Finish { reason }`, `Error { code, message }`.
 - `supports_tools()` markiert Provider, die `request.tools` verarbeiten können — der ReAct-Loop reicht Tools nur an Provider, die das bestätigen.
 - **Lokales Modell-Lifecycle:** `LocalGgufProvider` hält ein Modell zwischen Generations geladen, entlädt es aber nach 10 min Idle automatisch (Watcher in `ensure_idle_watcher`). Wer den RAM-Bedarf debuggt oder zusätzliche Trigger zum Entladen einbaut (z. B. beim Wechsel auf Cloud-Provider), arbeitet hier — nicht den Watcher umgehen, sondern ergänzen.
+
+### Token-Usage-Logging
+
+- Provider emittieren genau einmal pro Generation ein `LlmEvent::Usage(TokenUsage)`, direkt vor dem terminalen `Finish`. `TokenUsage` führt `input_tokens`, `output_tokens`, `cached_input_tokens` und `cache_creation_input_tokens` (die letzten beiden `Option<u32>`).
+- Welcher Provider was füllt:
+  - **Anthropic:** alle vier Felder (Cache-Werte stehen im `message_start.usage`-Block, output_tokens kumulativ in `message_delta.usage`).
+  - **OpenAI / OpenRouter:** `input_tokens`, `output_tokens`, `cached_input_tokens` (aus `prompt_tokens_details.cached_tokens`). Voraussetzung: `OpenAiCompat::new(..., include_usage = true)` schickt `stream_options.include_usage`. Für selbstgehostete Compat-Server bleibt das opt-in, weil ältere Backends den Schlüssel ablehnen.
+  - **Local GGUF:** exakte `input_tokens` (aus `tokens.len()`) und `output_tokens` (aus `n_cur - prompt_len`); Cache-Felder bleiben `None`, solange wir bei jedem Call einen frischen `LlamaContext` bauen.
+- Aggregation passiert im `react_loop` (`core/chat/run.rs`): pro Iteration ein `tracing::debug!`-Eintrag, am Ende des Runs ein `tracing::info!("chat run usage", provider, model, iterations, input_tokens, output_tokens, cached_input_tokens, cache_creation_input_tokens)`. Logfile liegt unter `<app-support>/ProcessFox/logs/processfox.log.<datum>`.
+- Wenn ein Provider keine Usage liefert (Compat-Backend ohne `include_usage`, abgebrochener Stream), bleibt das `Usage`-Event aus — der Runner darf nicht hängen, und der Run-Total-Log wird übersprungen statt mit Nullen geschrieben.
 
 ### Tool-Registry
 

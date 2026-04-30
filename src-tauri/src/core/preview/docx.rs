@@ -89,7 +89,8 @@ fn walk(xml: &str) -> CoreResult<String> {
 
     loop {
         if s.out.len() > MAX_HTML_BYTES {
-            s.out.push_str("\n<p><em>[Vorschau gekürzt — Dokument ist sehr groß.]</em></p>");
+            s.out
+                .push_str("\n<p><em>[Vorschau gekürzt — Dokument ist sehr groß.]</em></p>");
             break;
         }
         match reader.read_event_into(&mut buf) {

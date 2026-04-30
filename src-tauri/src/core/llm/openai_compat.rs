@@ -13,7 +13,7 @@ use serde_json::{json, Value as JsonValue};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use super::{ChatRole, ChatTurn, FinishReason, GenerateRequest, LlmEvent, ToolCall};
+use super::{ChatRole, ChatTurn, FinishReason, GenerateRequest, LlmEvent, TokenUsage, ToolCall};
 use crate::core::error::{CoreError, CoreResult};
 use crate::core::tool::ToolSchema;
 
@@ -22,6 +22,11 @@ pub struct OpenAiCompat {
     pub secret_key: &'static str,
     pub api_base: &'static str,
     pub extra_headers: &'static [(&'static str, &'static str)],
+    /// Whether to send `stream_options: { include_usage: true }` so the
+    /// final stream chunk carries a `usage` block. Standard OpenAI and
+    /// OpenRouter support this; older self-hosted OpenAI-compat servers may
+    /// reject the unknown field, so it's opt-in per backend.
+    pub include_usage: bool,
     pub http: reqwest::Client,
 }
 
@@ -33,15 +38,43 @@ struct Request {
     max_tokens: Option<u32>,
     stream: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    stream_options: Option<StreamOptions>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     temperature: Option<f32>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     tools: Vec<JsonValue>,
+}
+
+#[derive(Serialize)]
+struct StreamOptions {
+    include_usage: bool,
 }
 
 #[derive(Deserialize, Debug)]
 struct StreamChunk {
     #[serde(default)]
     choices: Vec<Choice>,
+    /// Present in the final chunk when `stream_options.include_usage` was
+    /// requested. OpenAI emits one chunk with empty `choices` carrying the
+    /// usage totals just before `[DONE]`.
+    #[serde(default)]
+    usage: Option<UsagePayload>,
+}
+
+#[derive(Deserialize, Debug)]
+struct UsagePayload {
+    #[serde(default)]
+    prompt_tokens: Option<u32>,
+    #[serde(default)]
+    completion_tokens: Option<u32>,
+    #[serde(default)]
+    prompt_tokens_details: Option<PromptTokensDetails>,
+}
+
+#[derive(Deserialize, Debug)]
+struct PromptTokensDetails {
+    #[serde(default)]
+    cached_tokens: Option<u32>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -186,6 +219,7 @@ impl OpenAiCompat {
         secret_key: &'static str,
         api_base: &'static str,
         extra_headers: &'static [(&'static str, &'static str)],
+        include_usage: bool,
     ) -> CoreResult<Self> {
         let http = reqwest::Client::builder()
             .user_agent("ProcessFox/0.1")
@@ -196,6 +230,7 @@ impl OpenAiCompat {
             secret_key,
             api_base,
             extra_headers,
+            include_usage,
             http,
         })
     }
@@ -250,6 +285,13 @@ impl OpenAiCompat {
             messages: compose_wire(&request),
             max_tokens: Some(request.max_tokens),
             stream: true,
+            stream_options: if self.include_usage {
+                Some(StreamOptions {
+                    include_usage: true,
+                })
+            } else {
+                None
+            },
             temperature: request.temperature,
             tools: tools_to_wire(&request.tools),
         };
@@ -289,6 +331,9 @@ impl OpenAiCompat {
 
         let mut stream = response.bytes_stream().eventsource();
         let mut pending: HashMap<u32, PendingToolCall> = HashMap::new();
+        let mut usage = TokenUsage::default();
+        let mut usage_seen = false;
+        let mut usage_emitted = false;
 
         while let Some(event) = tokio::select! {
             e = stream.next() => e,
@@ -322,6 +367,7 @@ impl OpenAiCompat {
             }
             if event.data.trim() == "[DONE]" {
                 flush_pending_tool_calls(&mut pending, &sink).await;
+                emit_usage_once(&sink, &usage, usage_seen, &mut usage_emitted).await;
                 let _ = sink
                     .send(LlmEvent::Finish {
                         reason: FinishReason::Stop,
@@ -342,6 +388,10 @@ impl OpenAiCompat {
                     continue;
                 }
             };
+
+            if let Some(u) = chunk.usage.as_ref() {
+                merge_openai_usage(&mut usage, u, &mut usage_seen);
+            }
 
             for choice in chunk.choices {
                 if let Some(text) = choice.delta.content {
@@ -379,6 +429,7 @@ impl OpenAiCompat {
         }
 
         flush_pending_tool_calls(&mut pending, &sink).await;
+        emit_usage_once(&sink, &usage, usage_seen, &mut usage_emitted).await;
         let _ = sink
             .send(LlmEvent::Finish {
                 reason: FinishReason::Stop,
@@ -386,6 +437,36 @@ impl OpenAiCompat {
             .await;
         Ok(())
     }
+}
+
+fn merge_openai_usage(acc: &mut TokenUsage, src: &UsagePayload, seen: &mut bool) {
+    if let Some(v) = src.prompt_tokens {
+        acc.input_tokens = v;
+        *seen = true;
+    }
+    if let Some(v) = src.completion_tokens {
+        acc.output_tokens = v;
+        *seen = true;
+    }
+    if let Some(details) = src.prompt_tokens_details.as_ref() {
+        if let Some(v) = details.cached_tokens {
+            acc.cached_input_tokens = Some(v);
+            *seen = true;
+        }
+    }
+}
+
+async fn emit_usage_once(
+    sink: &mpsc::Sender<LlmEvent>,
+    usage: &TokenUsage,
+    seen: bool,
+    emitted: &mut bool,
+) {
+    if *emitted || !seen {
+        return;
+    }
+    *emitted = true;
+    let _ = sink.send(LlmEvent::Usage(*usage)).await;
 }
 
 async fn flush_pending_tool_calls(

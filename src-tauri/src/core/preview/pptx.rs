@@ -260,7 +260,11 @@ mod tests {
             Some(1)
         );
         assert_eq!(
-            parse_index("ppt/slides/_rels/slide1.xml.rels", "ppt/slides/slide", ".xml"),
+            parse_index(
+                "ppt/slides/_rels/slide1.xml.rels",
+                "ppt/slides/slide",
+                ".xml"
+            ),
             None
         );
     }

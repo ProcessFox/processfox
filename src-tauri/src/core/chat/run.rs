@@ -11,8 +11,8 @@ use super::repo::{ChatMessage, ChatRepo, MessageRole};
 use crate::core::agent::Agent;
 use crate::core::error::{CoreError, CoreResult};
 use crate::core::llm::{
-    ChatRole, ChatTurn, FinishReason, GenerateRequest, LlmEvent, ProviderRegistry, ToolCall,
-    ToolResult,
+    ChatRole, ChatTurn, FinishReason, GenerateRequest, LlmEvent, ProviderRegistry, TokenUsage,
+    ToolCall, ToolResult,
 };
 use crate::core::skill::SkillRegistry;
 use crate::core::tool::{HitlDecision, HitlPreview, ToolContext, ToolRegistry, ToolSchema};
@@ -324,8 +324,11 @@ async fn react_loop(
         turns.drain(0..turns.len() - HISTORY_WINDOW);
     }
 
-    for _ in 0..MAX_REACT_ITERATIONS {
-        let (text, reasoning, tool_calls, finish_reason) = run_single_call(
+    let mut run_totals = TokenUsage::default();
+    let mut run_totals_seen = false;
+
+    for iteration in 0..MAX_REACT_ITERATIONS {
+        let (text, reasoning, tool_calls, finish_reason, iter_usage) = run_single_call(
             app,
             channel,
             provider.clone(),
@@ -336,6 +339,21 @@ async fn react_loop(
             cancel.clone(),
         )
         .await?;
+
+        if let Some(u) = iter_usage {
+            accumulate_usage(&mut run_totals, &u);
+            run_totals_seen = true;
+            tracing::debug!(
+                provider = provider.id(),
+                model = model_id,
+                iteration,
+                input_tokens = u.input_tokens,
+                output_tokens = u.output_tokens,
+                cached_input_tokens = u.cached_input_tokens,
+                cache_creation_input_tokens = u.cache_creation_input_tokens,
+                "chat iteration usage"
+            );
+        }
 
         // Record the assistant turn we just produced, either in-memory for
         // the next LLM call or (on final iteration) as the persisted message.
@@ -352,6 +370,13 @@ async fn react_loop(
             if !assistant_msg.content.is_empty() || reasoning.is_some() {
                 let _ = repo.append(&agent.id, &assistant_msg);
             }
+            log_run_totals(
+                provider.id(),
+                model_id,
+                iteration + 1,
+                &run_totals,
+                run_totals_seen,
+            );
             return Ok(assistant_msg);
         }
 
@@ -567,9 +592,53 @@ async fn react_loop(
         }
     }
 
+    log_run_totals(
+        provider.id(),
+        model_id,
+        MAX_REACT_ITERATIONS,
+        &run_totals,
+        run_totals_seen,
+    );
     Err(CoreError::Llm(format!(
         "ReAct-Loop-Limit ({MAX_REACT_ITERATIONS}) erreicht."
     )))
+}
+
+fn accumulate_usage(acc: &mut TokenUsage, src: &TokenUsage) {
+    acc.input_tokens = acc.input_tokens.saturating_add(src.input_tokens);
+    acc.output_tokens = acc.output_tokens.saturating_add(src.output_tokens);
+    if let Some(v) = src.cached_input_tokens {
+        acc.cached_input_tokens = Some(acc.cached_input_tokens.unwrap_or(0).saturating_add(v));
+    }
+    if let Some(v) = src.cache_creation_input_tokens {
+        acc.cache_creation_input_tokens = Some(
+            acc.cache_creation_input_tokens
+                .unwrap_or(0)
+                .saturating_add(v),
+        );
+    }
+}
+
+fn log_run_totals(
+    provider_id: &str,
+    model_id: &str,
+    iterations: u32,
+    totals: &TokenUsage,
+    seen: bool,
+) {
+    if !seen {
+        return;
+    }
+    tracing::info!(
+        provider = provider_id,
+        model = model_id,
+        iterations,
+        input_tokens = totals.input_tokens,
+        output_tokens = totals.output_tokens,
+        cached_input_tokens = totals.cached_input_tokens,
+        cache_creation_input_tokens = totals.cache_creation_input_tokens,
+        "chat run usage"
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -582,7 +651,13 @@ async fn run_single_call(
     system_prompt: Option<String>,
     turns: Vec<ChatTurn>,
     cancel: CancellationToken,
-) -> CoreResult<(String, Option<String>, Vec<ToolCall>, FinishReason)> {
+) -> CoreResult<(
+    String,
+    Option<String>,
+    Vec<ToolCall>,
+    FinishReason,
+    Option<TokenUsage>,
+)> {
     let (tx, mut rx) = mpsc::channel::<LlmEvent>(64);
 
     let request = GenerateRequest {
@@ -604,6 +679,7 @@ async fn run_single_call(
     let mut tool_calls: Vec<ToolCall> = Vec::new();
     let mut finish_reason: Option<FinishReason> = None;
     let mut terminal_error: Option<(String, String)> = None;
+    let mut usage: Option<TokenUsage> = None;
 
     while let Some(event) = rx.recv().await {
         match event {
@@ -625,6 +701,9 @@ async fn run_single_call(
                     },
                 );
                 tool_calls.push(call);
+            }
+            LlmEvent::Usage(u) => {
+                usage = Some(u);
             }
             LlmEvent::Finish { reason } => {
                 finish_reason = Some(reason);
@@ -649,6 +728,7 @@ async fn run_single_call(
         reasoning,
         tool_calls,
         finish_reason.unwrap_or(FinishReason::Stop),
+        usage,
     ))
 }
 

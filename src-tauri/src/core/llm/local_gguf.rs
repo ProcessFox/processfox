@@ -23,7 +23,7 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 
 use super::json_cleanup::extract_json_value;
-use super::{ChatRole, FinishReason, GenerateRequest, LlmEvent, LlmProvider, ToolCall};
+use super::{ChatRole, FinishReason, GenerateRequest, LlmEvent, LlmProvider, TokenUsage, ToolCall};
 use crate::core::error::{CoreError, CoreResult};
 use crate::core::tool::ToolSchema;
 
@@ -329,24 +329,26 @@ impl LlmProvider for LocalGgufProvider {
         let cancel_blocking = cancel.clone();
         let sink_blocking = sink.clone();
 
-        let join = tokio::task::spawn_blocking(move || -> CoreResult<FinishReason> {
-            run_generation(
-                backend,
-                &model_arc,
-                &template,
-                &messages_json,
-                tools_json_owned.as_deref(),
-                max_tokens,
-                temperature,
-                cancel_blocking,
-                sink_blocking,
-            )
-        })
-        .await
-        .map_err(|e| CoreError::Llm(format!("Generation-Task: {e}")))?;
+        let join =
+            tokio::task::spawn_blocking(move || -> CoreResult<(FinishReason, TokenUsage)> {
+                run_generation(
+                    backend,
+                    &model_arc,
+                    &template,
+                    &messages_json,
+                    tools_json_owned.as_deref(),
+                    max_tokens,
+                    temperature,
+                    cancel_blocking,
+                    sink_blocking,
+                )
+            })
+            .await
+            .map_err(|e| CoreError::Llm(format!("Generation-Task: {e}")))?;
 
         match join {
-            Ok(reason) => {
+            Ok((reason, usage)) => {
+                let _ = sink.send(LlmEvent::Usage(usage)).await;
                 let _ = sink.send(LlmEvent::Finish { reason }).await;
                 Ok(())
             }
@@ -382,7 +384,7 @@ fn run_generation(
     temperature: f32,
     cancel: CancellationToken,
     sink: mpsc::Sender<LlmEvent>,
-) -> CoreResult<FinishReason> {
+) -> CoreResult<(FinishReason, TokenUsage)> {
     let params = OpenAIChatTemplateParams {
         messages_json,
         tools_json,
@@ -507,7 +509,13 @@ fn run_generation(
         finish = FinishReason::ToolUse;
     }
 
-    Ok(finish)
+    let usage = TokenUsage {
+        input_tokens: tokens.len() as u32,
+        output_tokens: (n_cur - tokens.len() as i32).max(0) as u32,
+        cached_input_tokens: None,
+        cache_creation_input_tokens: None,
+    };
+    Ok((finish, usage))
 }
 
 /// In-progress tool call assembled from streamed deltas.

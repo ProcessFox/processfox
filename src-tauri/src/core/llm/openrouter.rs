@@ -25,6 +25,7 @@ impl OpenRouterProvider {
                 "openrouter",
                 "https://openrouter.ai/api/v1",
                 EXTRA,
+                true,
             )?,
         })
     }

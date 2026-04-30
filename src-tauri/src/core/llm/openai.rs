@@ -14,7 +14,7 @@ pub struct OpenAiProvider {
 impl OpenAiProvider {
     pub fn new() -> CoreResult<Self> {
         Ok(Self {
-            inner: OpenAiCompat::new("openai", "openai", "https://api.openai.com/v1", &[])?,
+            inner: OpenAiCompat::new("openai", "openai", "https://api.openai.com/v1", &[], true)?,
         })
     }
 }

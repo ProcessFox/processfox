@@ -8,7 +8,9 @@ use serde_json::{json, Value as JsonValue};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use super::{ChatRole, ChatTurn, FinishReason, GenerateRequest, LlmEvent, LlmProvider, ToolCall};
+use super::{
+    ChatRole, ChatTurn, FinishReason, GenerateRequest, LlmEvent, LlmProvider, TokenUsage, ToolCall,
+};
 use crate::core::error::{CoreError, CoreResult};
 use crate::core::tool::ToolSchema;
 
@@ -53,7 +55,9 @@ struct Request {
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum StreamEvent {
-    MessageStart {},
+    MessageStart {
+        message: MessageStartPayload,
+    },
     ContentBlockStart {
         index: u32,
         content_block: ContentBlockStartPayload,
@@ -68,6 +72,8 @@ enum StreamEvent {
     },
     MessageDelta {
         delta: MessageDelta,
+        #[serde(default)]
+        usage: Option<UsagePayload>,
     },
     MessageStop {},
     Error {
@@ -75,6 +81,29 @@ enum StreamEvent {
     },
     #[serde(other)]
     Unknown,
+}
+
+#[derive(Deserialize, Debug)]
+struct MessageStartPayload {
+    #[serde(default)]
+    usage: Option<UsagePayload>,
+}
+
+/// Anthropic's usage block. `input_tokens` is what we'll be billed full price
+/// for; `cache_creation_input_tokens` was billed at 1.25× to *write* the
+/// cache; `cache_read_input_tokens` was billed at 0.1× because it hit cache.
+/// `output_tokens` arrives cumulatively in `message_delta`; the final value
+/// is in the last delta.
+#[derive(Deserialize, Debug, Default, Clone, Copy)]
+struct UsagePayload {
+    #[serde(default)]
+    input_tokens: Option<u32>,
+    #[serde(default)]
+    output_tokens: Option<u32>,
+    #[serde(default)]
+    cache_creation_input_tokens: Option<u32>,
+    #[serde(default)]
+    cache_read_input_tokens: Option<u32>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -278,6 +307,9 @@ impl LlmProvider for AnthropicProvider {
 
         let mut stream = response.bytes_stream().eventsource();
         let mut pending_tools: HashMap<u32, PendingToolUse> = HashMap::new();
+        let mut usage = TokenUsage::default();
+        let mut usage_seen = false;
+        let mut usage_emitted = false;
 
         while let Some(event) = tokio::select! {
             e = stream.next() => e,
@@ -319,6 +351,11 @@ impl LlmProvider for AnthropicProvider {
             };
 
             match parsed {
+                StreamEvent::MessageStart { message } => {
+                    if let Some(u) = message.usage {
+                        merge_usage(&mut usage, &u, &mut usage_seen);
+                    }
+                }
                 StreamEvent::ContentBlockStart {
                     index,
                     content_block: ContentBlockStartPayload::ToolUse { id, name },
@@ -373,8 +410,12 @@ impl LlmProvider for AnthropicProvider {
                         }
                     }
                 }
-                StreamEvent::MessageDelta { delta } => {
+                StreamEvent::MessageDelta { delta, usage: u } => {
+                    if let Some(u) = u {
+                        merge_usage(&mut usage, &u, &mut usage_seen);
+                    }
                     if let Some(reason) = delta.stop_reason.as_deref() {
+                        emit_usage_once(&sink, &usage, usage_seen, &mut usage_emitted).await;
                         let _ = sink
                             .send(LlmEvent::Finish {
                                 reason: map_stop_reason(Some(reason)),
@@ -384,6 +425,7 @@ impl LlmProvider for AnthropicProvider {
                 }
                 StreamEvent::MessageStop {} => {
                     // MessageDelta typically emitted the final reason already; if not, send Stop.
+                    emit_usage_once(&sink, &usage, usage_seen, &mut usage_emitted).await;
                     let _ = sink
                         .send(LlmEvent::Finish {
                             reason: FinishReason::Stop,
@@ -407,6 +449,7 @@ impl LlmProvider for AnthropicProvider {
         }
 
         // Stream ended without explicit MessageStop (unusual).
+        emit_usage_once(&sink, &usage, usage_seen, &mut usage_emitted).await;
         let _ = sink
             .send(LlmEvent::Finish {
                 reason: FinishReason::Stop,
@@ -414,4 +457,36 @@ impl LlmProvider for AnthropicProvider {
             .await;
         Ok(())
     }
+}
+
+fn merge_usage(acc: &mut TokenUsage, src: &UsagePayload, seen: &mut bool) {
+    if let Some(v) = src.input_tokens {
+        acc.input_tokens = v;
+        *seen = true;
+    }
+    if let Some(v) = src.output_tokens {
+        acc.output_tokens = v;
+        *seen = true;
+    }
+    if let Some(v) = src.cache_creation_input_tokens {
+        acc.cache_creation_input_tokens = Some(v);
+        *seen = true;
+    }
+    if let Some(v) = src.cache_read_input_tokens {
+        acc.cached_input_tokens = Some(v);
+        *seen = true;
+    }
+}
+
+async fn emit_usage_once(
+    sink: &mpsc::Sender<LlmEvent>,
+    usage: &TokenUsage,
+    seen: bool,
+    emitted: &mut bool,
+) {
+    if *emitted || !seen {
+        return;
+    }
+    *emitted = true;
+    let _ = sink.send(LlmEvent::Usage(*usage)).await;
 }
