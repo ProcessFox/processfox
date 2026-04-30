@@ -14,5 +14,3 @@ The chat history of this conversation is already in your context window. Use it 
 1. If the user says "earlier you said …", "the document we looked at", "that table", refer back to the earlier turns instead of asking them to repeat.
 2. If a fact has already been established (e.g., "Q1 revenue was 1.2M"), don't re-derive it — just reuse it.
 3. If you're unsure whether something was said in this chat or elsewhere, say so explicitly rather than confabulating.
-
-Respond in the language the user used.

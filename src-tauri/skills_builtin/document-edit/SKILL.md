@@ -37,5 +37,3 @@ Agent calls (in order):
 2. `rewrite_file({ path: "journal.md", content: <full content with HITL → Human-in-the-Loop> })`
 
 The HitlCard shows a diff of two lines (one removed, one added). The user approves; the rest of the file is untouched.
-
-Respond in the language the user used.

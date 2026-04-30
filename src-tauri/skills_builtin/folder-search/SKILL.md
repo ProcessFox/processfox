@@ -26,5 +26,3 @@ Guidelines:
 4. Don't open files blindly. Every `read_file` call spends tokens; be deliberate.
 5. Cite file paths verbatim so the user can click into them (e.g. `reports/2026-q1.md`).
 6. If a tool returns an error (e.g. path outside the folder, non-text file), explain the limitation briefly and try a different approach.
-
-Respond in the language the user used.

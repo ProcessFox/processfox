@@ -203,6 +203,16 @@ processfox/
 - Frontmatter wird via `serde_yaml` oder `gray_matter` geparsed.
 - Geladen in ein `SkillRegistry`, von dort kann der Agent sie abrufen.
 
+### Progressive Skill Disclosure
+
+- **System-Prompt zeigt nur die Frontmatter** (Title + Description) jedes auf einem Agenten aktivierten Skills, nicht den Body. Gerendert von `skills_block` in `core/chat/run.rs` als kompakte Bullet-Liste unter `## Available skills`.
+- **Body wird on demand geladen** über das `read_skill`-Tool (`core/tool/tools/read_skill.rs`). Das Tool nimmt `{ skillId }` und gibt den Body zurück; es wird automatisch in die Tool-Schemas aufgenommen, sobald ein Agent mindestens einen Skill aktiv hat (`collect_tool_schemas`).
+- **Konsequenzen für SKILL.md-Autor:innen:**
+  - Die `description` muss alleine ausreichen, damit der Agent entscheiden kann, ob er das Skill braucht. Action-oriented schreiben, mit konkreten Trigger-Phrasen ("when the user asks …", "use this for …"), nicht Marketing-Text.
+  - Der Body muss als isolierter Text funktionieren, der mid-conversation als Tool-Result auftaucht. Keine impliziten Referenzen auf „den vorherigen Block im Prompt", außer auf die immer vorhandenen System-Prompt-Sektionen (`Today is …`, `## Attachments`).
+  - Globale Verhaltensregeln (z. B. „Respond in the language the user used") gehören in den System-Prompt-Header (`compose_system_prompt`), nicht in jeden Skill-Body — sonst greifen sie erst, sobald das Skill geladen wurde.
+- **Trade-off**, den man kennen muss: der erste Einsatz eines Skills kostet eine zusätzliche ReAct-Iteration (read_skill-Roundtrip). Schwächere lokale Modelle entscheiden manchmal schlecht, *ob* sie ein Skill brauchen — beim Auswählen der Default-Modelle für Local GGUF berücksichtigen.
+
 ## 6. Sicherheits-Pattern
 
 ```rust

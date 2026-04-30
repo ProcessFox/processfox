@@ -19,7 +19,7 @@ use crate::core::storage::AppPaths;
 use crate::core::tool::{
     tools::{
         AppendToDocxTool, AppendToMdTool, AskUserTool, GrepInFilesTool, ListFolderTool,
-        ReadDocxTool, ReadFileTool, ReadPdfTool, ReadXlsxRangeTool, RewriteFileTool,
+        ReadDocxTool, ReadFileTool, ReadPdfTool, ReadSkillTool, ReadXlsxRangeTool, RewriteFileTool,
         UpdateXlsxCellTool, WriteDocxFromTemplateTool, WriteDocxTool, WriteXlsxTool,
     },
     ToolRegistry,
@@ -86,6 +86,9 @@ pub fn run() {
             let catalog = ModelCatalog::embedded()?;
             tracing::info!(models = catalog.models.len(), "model catalog loaded");
 
+            let skills = SkillRegistry::load_builtin()?;
+            tracing::info!(skills = skills.all().len(), "skill registry loaded");
+
             let mut tools = ToolRegistry::new();
             tools.register(Arc::new(ListFolderTool));
             tools.register(Arc::new(ReadFileTool));
@@ -101,10 +104,8 @@ pub fn run() {
             tools.register(Arc::new(WriteXlsxTool));
             tools.register(Arc::new(AskUserTool));
             tools.register(Arc::new(WriteDocxFromTemplateTool));
+            tools.register(Arc::new(ReadSkillTool::new(skills.clone())));
             tracing::info!(tools = tools.names().len(), "tool registry ready");
-
-            let skills = SkillRegistry::load_builtin()?;
-            tracing::info!(skills = skills.all().len(), "skill registry loaded");
 
             app.manage(AppState::new(paths, registry, catalog, tools, skills));
             Ok(())

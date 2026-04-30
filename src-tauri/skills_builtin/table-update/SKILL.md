@@ -54,5 +54,3 @@ The HitlCard shows:
 | B7    | 10000  | 12000   |
 
 The user approves; the workbook is rewritten with that single change.
-
-Respond in the language the user used.

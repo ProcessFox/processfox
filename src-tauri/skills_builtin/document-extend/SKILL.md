@@ -51,5 +51,3 @@ User: "Trag das heutige Meeting ein, Themen: Q3-Ziele, Hiring, Budget."
 Agent calls (in order):
 1. `read_docx({ path: "meetings.docx" })` → sees `## YYYY-MM-DD` style headings followed by bullets.
 2. `append_to_docx({ path: "meetings.docx", content: "## 2026-04-25\n\n- Q3-Ziele\n- Hiring\n- Budget" })`
-
-Respond in the language the user used.

@@ -25,5 +25,3 @@ Guidelines:
 4. For workbooks with multiple sheets, run **read_xlsx_range** once with no range to see the first sheet, then list the user the available sheet names if you need a different one.
 5. The cell-range cap is 500 cells per call — split big sheets into multiple calls.
 6. Cite the file path and sheet name verbatim, and refer to cells in standard notation (`B7`, `C12:D15`).
-
-Respond in the language the user used.

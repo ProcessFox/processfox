@@ -31,5 +31,3 @@ Agent calls (in order):
 2. `write_xlsx({ path: "q3-budget.xlsx", sheet: "Budget", rows: [["Position", "Betrag"], ["Marketing", "12000"], ["Personal", "50000"], ["IT", "15000"]] })`
 
 The HitlCard shows the rows as a 2-column × 4-row table; the user approves; the workbook opens in Excel with `Position`/`Betrag` headers and three numeric rows.
-
-Respond in the language the user used.

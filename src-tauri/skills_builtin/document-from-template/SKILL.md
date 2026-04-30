@@ -40,5 +40,3 @@ Agent calls (in order):
 3. `write_docx_from_template({ templatePath: "offer-template.docx", outputPath: "angebot-max-mustermann-2026-04-26.docx", replacements: { customer: "Max Mustermann GmbH", amount: "12.500 €", deadline: "Ende Mai 2026", contact_email: "max@mustermann.de" } })`
 
 The HitlCard shows the four substitutions; the user approves; a new docx is written. The template stays untouched.
-
-Respond in the language the user used.

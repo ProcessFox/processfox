@@ -28,5 +28,3 @@ Guidelines:
 3. For long documents the tool returns a truncated body — say so when you summarize, and ask the user whether to drill into a specific section.
 4. Cite the file path verbatim so the user can click into it.
 5. If a PDF returns empty text, it's likely a scanned document without OCR — explain that to the user.
-
-Respond in the language the user used.

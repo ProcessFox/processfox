@@ -745,25 +745,48 @@ fn compose_system_prompt(agent: &Agent, skills: &SkillRegistry) -> Option<String
     if !agent.system_prompt.trim().is_empty() {
         parts.push(agent.system_prompt.trim().to_string());
     }
-    for skill_name in &agent.skills {
-        if let Some(skill) = skills.get(skill_name) {
-            let mut block = format!("## Skill: {}\n", skill.title);
-            block.push_str(&skill.description);
-            if !skill.body.trim().is_empty() {
-                block.push_str("\n\n");
-                block.push_str(skill.body.trim());
-            }
-            parts.push(block);
-        }
+    if let Some(block) = skills_block(agent, skills) {
+        parts.push(block);
     }
     if let Some(block) = attachments_block(agent) {
         parts.push(block);
     }
+    parts.push("Respond in the language the user used.".to_string());
     if parts.is_empty() {
         None
     } else {
         Some(parts.join("\n\n"))
     }
+}
+
+/// Render the agent's enabled skills as a compact "Available skills" list.
+/// Only the description is included here; the body is loaded on demand via
+/// the `read_skill` tool. This keeps the per-request input cost flat as more
+/// skills are enabled.
+fn skills_block(agent: &Agent, skills: &SkillRegistry) -> Option<String> {
+    let entries: Vec<String> = agent
+        .skills
+        .iter()
+        .filter_map(|name| skills.get(name))
+        .map(|s| {
+            let desc = s.description.trim();
+            format!("- **{}** (id: `{}`) — {}", s.title, s.name, desc)
+        })
+        .collect();
+    if entries.is_empty() {
+        return None;
+    }
+    let mut block = String::from("## Available skills\n");
+    block.push_str(
+        "Each skill below is summarized; the full instructions live in its body. \
+         If the user's request maps to one of these skills, call \
+         `read_skill({ skillId: \"<id>\" })` to load the body — it will arrive as a tool \
+         result and you must follow it before acting. If no skill is relevant, answer \
+         directly without calling `read_skill`. Skills already loaded earlier in this \
+         conversation stay in scope; don't reload them.\n\n",
+    );
+    block.push_str(&entries.join("\n"));
+    Some(block)
 }
 
 /// Render the agent's attachments as a system-prompt hint. Phrased
@@ -800,6 +823,12 @@ fn collect_tool_schemas(
     tools: &ToolRegistry,
 ) -> Vec<ToolSchema> {
     let mut wanted: Vec<String> = Vec::new();
+    // Whenever the agent has any skills configured, expose `read_skill` so
+    // the model can pull in skill bodies on demand. The system prompt only
+    // lists descriptions; bodies arrive as tool results when the model asks.
+    if !agent.skills.is_empty() {
+        wanted.push("read_skill".to_string());
+    }
     for skill_name in &agent.skills {
         if let Some(skill) = skills.get(skill_name) {
             for t in &skill.tools {

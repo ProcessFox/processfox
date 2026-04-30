@@ -35,5 +35,3 @@ User: "Erstelle mir bitte eine kurze Notiz für das Meeting morgen — Titel 'Qu
 Agent calls (in order):
 1. `list_folder({ path: "" })` → bestätigt, dass `quartalsplanung.docx` noch nicht existiert.
 2. `write_docx({ path: "quartalsplanung.docx", content: "# Quartalsplanung\n\n- Budget-Review\n- Personal\n- Q3-Ziele" })`
-
-Respond in the language the user used.
