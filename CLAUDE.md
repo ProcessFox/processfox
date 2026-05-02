@@ -213,6 +213,15 @@ processfox/
   - Globale Verhaltensregeln (z. B. „Respond in the language the user used") gehören in den System-Prompt-Header (`compose_system_prompt`), nicht in jeden Skill-Body — sonst greifen sie erst, sobald das Skill geladen wurde.
 - **Trade-off**, den man kennen muss: der erste Einsatz eines Skills kostet eine zusätzliche ReAct-Iteration (read_skill-Roundtrip). Schwächere lokale Modelle entscheiden manchmal schlecht, *ob* sie ein Skill brauchen — beim Auswählen der Default-Modelle für Local GGUF berücksichtigen.
 
+### Datei-Frische / Staleness-Hint
+
+- **Problem:** Der Agent liest `plan.md` per `read_file`, der Inhalt landet als `tool_result` in der History. Aus LLM-Sicht ist das die aktuelle Wahrheit über die Datei. Editiert die Nutzer:in die Datei zwischen den Turns parallel im Editor, antwortet das Modell aus dem Stand-Snapshot weiter — verwirrend und falsch.
+- **Lösung:** `core/chat/freshness.rs` mit `FreshnessTracker` als Feld auf `ChatRunner`. Map `(agent_id, kanonischer_pfad) → mtime_zur_lese_zeit`.
+- **Recording:** Nach jedem erfolgreichen Content-Read-Tool (`read_file`, `read_docx`, `read_pdf`, `read_xlsx_range` — siehe `is_content_read_tool`) ruft `react_loop` `freshness.record_read(agent.id, abs_path)` auf. Lese-Tools, die *keine* Snapshots etablieren (`list_folder`, `grep_in_files`, `read_skill`), werden bewusst ausgenommen.
+- **Hint-Injection:** Vor jeder neuen LLM-Anfrage prüft `react_loop` die Stale-Liste. Wenn nicht leer, wird via `format_freshness_hint` eine einzeilige deutsche Notiz vorne an den letzten User-Turn gehängt — **nur in der In-Memory-`turns`-Liste**, **nicht** in der persistierten JSONL-User-Message. Token-Kost: 0 im Steady-State, ~30–60 Tokens wenn relevant. Format unterscheidet `Modified` (geändert) und `Removed` (gelöscht/umbenannt) für klare LLM-Reaktion.
+- **Bewusste Granularitäts-Entscheidung:** Eine Änderung außerhalb des gelesenen Bereichs (z. B. `read_xlsx_range A1:C20`, dann Zelle E50 geändert) wird trotzdem als stale gemeldet. False positive ist günstiger als false negative — das LLM verschwendet einen `read_*`-Roundtrip statt mit veralteten Daten zu antworten. Wenn das in der Praxis als nervig auffällt, kann der Tracker später feiner werden (per-Range-Tracking).
+- **Tests:** `core/chat/freshness.rs::tests` deckt Record/No-Stale, Modification, Removal, Agent-Isolation und nonexistent-path-no-op ab. Wer die Logik anfasst, muss die grün halten.
+
 ### Chat-History-Trimming (Boundary-Pflege)
 
 - Der ReAct-Loop schickt bei jedem Request maximal die letzten `HISTORY_WINDOW = 20` Turns. Das stumpfe `drain` reicht **nicht** — es kann mitten in einem `assistant(tool_use) → user(tool_result)`-Paar landen und einen Orphan-`tool_result` erzeugen. Anthropic lehnt das mit `400 invalid_request_error` ab („Each `tool_result` block must have a corresponding `tool_use` block in the previous message"); OpenAI ist genauso strikt.

@@ -7,6 +7,7 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+use super::freshness::{FreshnessTracker, StaleEntry, StaleReason};
 use super::repo::{ChatMessage, ChatRepo, MessageRole};
 use crate::core::agent::Agent;
 use crate::core::error::{CoreError, CoreResult};
@@ -150,6 +151,7 @@ pub struct ChatRunner {
     active: Arc<Mutex<HashMap<RunId, ChatRunHandle>>>,
     pending_hitls: PendingHitls,
     pending_questions: PendingQuestions,
+    freshness: FreshnessTracker,
 }
 
 impl ChatRunner {
@@ -169,6 +171,7 @@ impl ChatRunner {
             active: Arc::new(Mutex::new(HashMap::new())),
             pending_hitls: Arc::new(Mutex::new(HashMap::new())),
             pending_questions: Arc::new(Mutex::new(HashMap::new())),
+            freshness: FreshnessTracker::new(),
         }
     }
 
@@ -230,6 +233,7 @@ impl ChatRunner {
         let skills = self.skills.clone();
         let pending_hitls = self.pending_hitls.clone();
         let pending_questions = self.pending_questions.clone();
+        let freshness = self.freshness.clone();
         let agent_id = agent.id.clone();
         let run_id_bg = run_id.clone();
         let assistant_id_bg = assistant_id.clone();
@@ -254,6 +258,7 @@ impl ChatRunner {
                 &skills,
                 &pending_hitls,
                 &pending_questions,
+                &freshness,
                 &agent,
                 &model_id,
                 &assistant_id_bg,
@@ -333,6 +338,7 @@ async fn react_loop(
     skills: &SkillRegistry,
     pending_hitls: &PendingHitls,
     pending_questions: &PendingQuestions,
+    freshness: &FreshnessTracker,
     agent: &Agent,
     model_id: &str,
     final_msg_id: &str,
@@ -350,6 +356,22 @@ async fn react_loop(
     let history = repo.load(&agent.id)?;
     let mut turns = history_to_turns(&history);
     trim_history(&mut turns, HISTORY_WINDOW);
+
+    // If any file the agent has read in this chat got modified or removed
+    // externally since, prepend a one-line hint to this user turn so the LLM
+    // can decide whether to re-read. The hint lives only in the in-memory
+    // request — the persisted user message in the JSONL stays clean.
+    let stale = freshness.stale_paths(&agent.id).await;
+    if let Some(hint) = format_freshness_hint(&stale, agent_folder.as_deref()) {
+        if let Some(last) = turns.last_mut() {
+            if last.role == ChatRole::User
+                && last.tool_results.is_empty()
+                && last.tool_calls.is_empty()
+            {
+                last.content = format!("{hint}\n\n{}", last.content);
+            }
+        }
+    }
 
     let mut run_totals = TokenUsage::default();
     let mut run_totals_seen = false;
@@ -581,6 +603,15 @@ async fn react_loop(
                 },
                 Err(e) => (format!("unknown tool: {e}"), true),
             };
+            // Track file-content reads so we can warn the LLM next turn if
+            // the user edited the file in the meantime. Best-effort: missing
+            // path arg or unresolvable path silently no-ops.
+            if !is_error && is_content_read_tool(&call.name) {
+                if let Some(rel) = call.arguments.get("path").and_then(|v| v.as_str()) {
+                    let abs = ctx.agent_folder.join(rel);
+                    freshness.record_read(&agent.id, &abs).await;
+                }
+            }
             let _ = app.emit(
                 channel,
                 RunEvent::ToolCallCompleted {
@@ -915,6 +946,66 @@ fn trim_history(turns: &mut Vec<ChatTurn>, window: usize) {
     }) {
         turns.remove(0);
     }
+}
+
+/// Tools whose successful execution loads file contents into the LLM's
+/// view. Listed explicitly so non-content reads (`list_folder`,
+/// `grep_in_files`, `read_skill`) don't trigger spurious staleness
+/// warnings — those don't establish a "snapshot of file X".
+fn is_content_read_tool(name: &str) -> bool {
+    matches!(
+        name,
+        "read_file" | "read_docx" | "read_pdf" | "read_xlsx_range"
+    )
+}
+
+/// Build the one-line German hint to prepend to a user turn when files the
+/// agent previously read are now stale. Returns `None` if the stale list is
+/// empty so callers can no-op cleanly. `agent_folder`, when provided, is
+/// canonicalized once so paths render relative to the user's folder rather
+/// than as absolute paths.
+fn format_freshness_hint(
+    stale: &[StaleEntry],
+    agent_folder: Option<&std::path::Path>,
+) -> Option<String> {
+    if stale.is_empty() {
+        return None;
+    }
+    let folder_canon = agent_folder.and_then(|p| p.canonicalize().ok());
+    let render = |p: &std::path::Path| -> String {
+        match &folder_canon {
+            Some(root) => p.strip_prefix(root).unwrap_or(p).display().to_string(),
+            None => p.display().to_string(),
+        }
+    };
+    let modified: Vec<String> = stale
+        .iter()
+        .filter(|e| e.reason == StaleReason::Modified)
+        .map(|e| format!("`{}`", render(&e.path)))
+        .collect();
+    let removed: Vec<String> = stale
+        .iter()
+        .filter(|e| e.reason == StaleReason::Removed)
+        .map(|e| format!("`{}`", render(&e.path)))
+        .collect();
+
+    let mut parts: Vec<String> = Vec::new();
+    if !modified.is_empty() {
+        parts.push(format!(
+            "Diese Dateien wurden seit dem letzten Lesen extern geändert: {}.",
+            modified.join(", ")
+        ));
+    }
+    if !removed.is_empty() {
+        parts.push(format!(
+            "Diese Dateien existieren nicht mehr unter dem ursprünglichen Pfad: {}.",
+            removed.join(", ")
+        ));
+    }
+    let body = parts.join(" ");
+    Some(format!(
+        "[Hinweis: {body} Falls deine Antwort vom aktuellen Inhalt abhängt, bitte erneut lesen.]"
+    ))
 }
 
 #[cfg(test)]
