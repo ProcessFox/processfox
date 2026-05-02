@@ -7,6 +7,7 @@ use tauri::{Emitter, Manager};
 
 use crate::core::chat::run::RunEvent;
 use crate::core::error::{CoreError, CoreResult};
+use crate::core::llm::TokenUsage;
 use crate::core::tool::{
     DelegationSamplePrompt, HitlPreview, Tool, ToolContext, ToolOutput, ToolSchema,
 };
@@ -267,6 +268,9 @@ impl Tool for DelegateIntoXlsxColumnTool {
         let mut failed = 0u32;
         let mut first_error: Option<String> = None;
         let mut cancelled_partway = false;
+        let mut total_usage = TokenUsage::default();
+        let mut usage_seen = false;
+        let started_at = std::time::Instant::now();
 
         for (idx, (row, values)) in targets.iter().enumerate() {
             if ctx.cancel.is_cancelled() {
@@ -282,7 +286,11 @@ impl Tool for DelegateIntoXlsxColumnTool {
                 .run_one(&resolved_profile, prompt, ctx.cancel.clone())
                 .await
             {
-                Ok(text) => {
+                Ok((text, usage)) => {
+                    if let Some(u) = usage {
+                        total_usage.accumulate(&u);
+                        usage_seen = true;
+                    }
                     let trimmed = text.trim().to_string();
                     let worksheet = book.get_sheet_by_name_mut(&sheet_name).ok_or_else(|| {
                         CoreError::Llm(format!("Sheet '{sheet_name}' nicht mehr auffindbar"))
@@ -324,6 +332,25 @@ impl Tool for DelegateIntoXlsxColumnTool {
                 }
             }
         }
+
+        let duration_ms = started_at.elapsed().as_millis() as u64;
+        tracing::info!(
+            provider = %resolved_profile.provider_id,
+            model = %resolved_profile.model_id,
+            path = %parsed.path,
+            target_column = %parsed.target_column,
+            items_total = total,
+            items_succeeded = succeeded,
+            items_failed = failed,
+            cancelled = cancelled_partway,
+            duration_ms,
+            input_tokens = total_usage.input_tokens,
+            output_tokens = total_usage.output_tokens,
+            cached_input_tokens = total_usage.cached_input_tokens,
+            cache_creation_input_tokens = total_usage.cache_creation_input_tokens,
+            tokens_reported = usage_seen,
+            "delegation fan-out usage"
+        );
 
         // Always persist whatever progress was made — partial results stay
         // in the workbook even if the run was cancelled mid-batch.

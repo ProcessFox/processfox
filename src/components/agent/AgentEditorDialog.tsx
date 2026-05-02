@@ -466,9 +466,9 @@ export function AgentEditorDialog({
                 <span className="text-xs text-muted-foreground">
                   Aktiviert Bulk-Werkzeuge, die pro Item eine fokussierte
                   Inferenz ausführen — z. B. um eine XLSX-Spalte für jede Zeile
-                  zu generieren. Die Felder unten überschreiben System-Prompt
-                  und Modell für diese inneren Aufrufe; leer = wie der Agent
-                  selbst.
+                  zu generieren. Standardmäßig antwortet der Worker knapp und
+                  ohne Formatierung; das Modell erbt vom Agenten. Beide Werte
+                  können hier überschrieben werden.
                 </span>
               </div>
             </label>
@@ -486,7 +486,7 @@ export function AgentEditorDialog({
                   value={delegationSystemPrompt}
                   onChange={(e) => setDelegationSystemPrompt(e.target.value)}
                   rows={3}
-                  placeholder="leer = wie der Agent selbst"
+                  placeholder="leer = Standard-Worker-Prompt (knappe, direkte Antwort, keine Markdown-Formatierung, keine Optionen-Liste)"
                   className="resize-none text-xs"
                 />
                 <Label className="text-xs">Modell für den Worker</Label>

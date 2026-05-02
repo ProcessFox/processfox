@@ -400,7 +400,7 @@ async fn react_loop(
         .await?;
 
         if let Some(u) = iter_usage {
-            accumulate_usage(&mut run_totals, &u);
+            run_totals.accumulate(&u);
             run_totals_seen = true;
             tracing::debug!(
                 provider = provider.id(),
@@ -673,21 +673,6 @@ async fn react_loop(
     Err(CoreError::Llm(format!(
         "ReAct-Loop-Limit ({MAX_REACT_ITERATIONS}) erreicht."
     )))
-}
-
-fn accumulate_usage(acc: &mut TokenUsage, src: &TokenUsage) {
-    acc.input_tokens = acc.input_tokens.saturating_add(src.input_tokens);
-    acc.output_tokens = acc.output_tokens.saturating_add(src.output_tokens);
-    if let Some(v) = src.cached_input_tokens {
-        acc.cached_input_tokens = Some(acc.cached_input_tokens.unwrap_or(0).saturating_add(v));
-    }
-    if let Some(v) = src.cache_creation_input_tokens {
-        acc.cache_creation_input_tokens = Some(
-            acc.cache_creation_input_tokens
-                .unwrap_or(0)
-                .saturating_add(v),
-        );
-    }
 }
 
 fn log_run_totals(

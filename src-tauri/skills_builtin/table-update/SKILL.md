@@ -38,7 +38,7 @@ The tool runs one focused inference per row using the agent's background worker,
 Workflow:
 1. `read_xlsx_range` first so you know the header names and roughly how many rows are involved. The bulk tool requires header names that match the row 1 cells exactly.
 2. Pick the source columns referenced in your prompt template and the target column for the output. If the target column doesn't exist yet, the tool appends it.
-3. Call `delegate_into_xlsx_column` with a focused `taskTemplate` that uses `{{header_name}}` placeholders. Keep the template short — the worker has no chat history, only this prompt and the agent's system prompt. Spell out the desired output format ("Antworte mit einem einzigen Satz auf Deutsch.") because there is no second turn to clarify.
+3. Call `delegate_into_xlsx_column` with a focused `taskTemplate` that uses `{{header_name}}` placeholders. The worker runs with a terse default system prompt (no Markdown, no options-list, one result), but you should *still* spell out the concrete output shape in the template itself — length, language, format, examples. "Schreibe einen Slogan" is too vague; "Schreibe einen einzigen kurzen deutschen Slogan (max. 6 Wörter, kein Doppelpunkt, keine Anführungszeichen)" is what reliably produces a clean column. There is no second turn to clarify.
 4. After the run, summarize how many rows were written and on which sheet.
 
 Example:

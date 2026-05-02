@@ -105,6 +105,27 @@ pub struct TokenUsage {
     pub cache_creation_input_tokens: Option<u32>,
 }
 
+impl TokenUsage {
+    /// Fold another report into this running total. Saturating arithmetic so
+    /// extremely long runs don't wrap; cache fields stay `None` until the
+    /// first contribution surfaces them.
+    pub fn accumulate(&mut self, src: &TokenUsage) {
+        self.input_tokens = self.input_tokens.saturating_add(src.input_tokens);
+        self.output_tokens = self.output_tokens.saturating_add(src.output_tokens);
+        if let Some(v) = src.cached_input_tokens {
+            self.cached_input_tokens =
+                Some(self.cached_input_tokens.unwrap_or(0).saturating_add(v));
+        }
+        if let Some(v) = src.cache_creation_input_tokens {
+            self.cache_creation_input_tokens = Some(
+                self.cache_creation_input_tokens
+                    .unwrap_or(0)
+                    .saturating_add(v),
+            );
+        }
+    }
+}
+
 /// Events emitted by a provider during a single generation.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
