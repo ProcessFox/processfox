@@ -18,9 +18,10 @@ use crate::core::skill::SkillRegistry;
 use crate::core::storage::AppPaths;
 use crate::core::tool::{
     tools::{
-        AppendToDocxTool, AppendToMdTool, AskUserTool, GrepInFilesTool, ListFolderTool,
-        ReadDocxTool, ReadFileTool, ReadPdfTool, ReadSkillTool, ReadXlsxRangeTool, RewriteFileTool,
-        UpdateXlsxCellTool, WriteDocxFromTemplateTool, WriteDocxTool, WriteXlsxTool,
+        AppendToDocxTool, AppendToMdTool, AskUserTool, DelegateIntoXlsxColumnTool, GrepInFilesTool,
+        ListFolderTool, ReadDocxTool, ReadFileTool, ReadPdfTool, ReadSkillTool, ReadXlsxRangeTool,
+        RewriteFileTool, UpdateXlsxCellTool, WriteDocxFromTemplateTool, WriteDocxTool,
+        WriteXlsxTool,
     },
     ToolRegistry,
 };
@@ -104,6 +105,7 @@ pub fn run() {
             tools.register(Arc::new(WriteXlsxTool));
             tools.register(Arc::new(AskUserTool));
             tools.register(Arc::new(WriteDocxFromTemplateTool));
+            tools.register(Arc::new(DelegateIntoXlsxColumnTool));
             tools.register(Arc::new(ReadSkillTool::new(skills.clone())));
             tracing::info!(tools = tools.names().len(), "tool registry ready");
 

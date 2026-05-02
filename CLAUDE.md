@@ -213,6 +213,13 @@ processfox/
   - Globale Verhaltensregeln (z. B. „Respond in the language the user used") gehören in den System-Prompt-Header (`compose_system_prompt`), nicht in jeden Skill-Body — sonst greifen sie erst, sobald das Skill geladen wurde.
 - **Trade-off**, den man kennen muss: der erste Einsatz eines Skills kostet eine zusätzliche ReAct-Iteration (read_skill-Roundtrip). Schwächere lokale Modelle entscheiden manchmal schlecht, *ob* sie ein Skill brauchen — beim Auswählen der Default-Modelle für Local GGUF berücksichtigen.
 
+### Chat-History-Trimming (Boundary-Pflege)
+
+- Der ReAct-Loop schickt bei jedem Request maximal die letzten `HISTORY_WINDOW = 20` Turns. Das stumpfe `drain` reicht **nicht** — es kann mitten in einem `assistant(tool_use) → user(tool_result)`-Paar landen und einen Orphan-`tool_result` erzeugen. Anthropic lehnt das mit `400 invalid_request_error` ab („Each `tool_result` block must have a corresponding `tool_use` block in the previous message"); OpenAI ist genauso strikt.
+- Pflicht-Helper: **`trim_history(turns, window)`** in `core/chat/run.rs`. Nach dem Drain läuft eine Heal-Schleife, die führende Turns droppt, die kein sauberer User-Start sind (Tool-Result-Turn, Assistant-Turn, Assistant mit Tool-Calls), bis der erste Turn ein echter `user`-Turn mit Content ist. Ergebnis darf kürzer als `window` sein, niemals länger.
+- **Wer den Trim umbaut, muss die Tests in `core/chat/run.rs::tests` grün halten** — dort liegen Cases für Orphan-Tool-Result, führenden Assistant, Orphan-Kette und intaktes Paar an der Grenze.
+- Wenn das Window in Tool-lastigen Sessions konsistent unter ~16 Turns sackt, lohnt ein klügerer Trim: rückwärts vom Ende einen sauberen Boundary suchen, der genau `window` Turns ergibt. Erst messen (Token-Logs zeigen die effektive History-Größe nicht direkt — ggf. extra DEBUG-Log einbauen), dann optimieren.
+
 ## 6. Sicherheits-Pattern
 
 ```rust

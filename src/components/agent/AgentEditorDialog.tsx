@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { agentApi, modelsApi, settingsApi, skillsApi } from "@/lib/tauri";
-import type { Agent, ModelRef } from "@/types/agent";
+import type { Agent, DelegationProfile, ModelRef } from "@/types/agent";
 import type { InstalledModel } from "@/types/models";
 import type { Settings } from "@/types/settings";
 import type { Skill } from "@/types/skill";
@@ -58,6 +58,124 @@ function selectionToModelRef(sel: ModelSelection): ModelRef | undefined {
   return { type: "cloud", provider: sel.provider, id: sel.modelId };
 }
 
+type ModelPickerProps = {
+  selection: ModelSelection;
+  onChange: (s: ModelSelection) => void;
+  installed: InstalledModel[];
+  defaultLabel: string;
+  defaultHint: string;
+  overrideHint: string;
+};
+
+function ModelOverridePicker({
+  selection,
+  onChange,
+  installed,
+  defaultLabel,
+  defaultHint,
+  overrideHint,
+}: ModelPickerProps) {
+  return (
+    <>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => onChange({ kind: "inherit" })}
+          className={`flex-1 rounded-md border px-3 py-2 text-left text-xs transition-colors ${
+            selection.kind === "inherit"
+              ? "border-primary bg-primary/10"
+              : "border-border bg-background hover:bg-accent"
+          }`}
+        >
+          <div className="font-medium">{defaultLabel}</div>
+          <div className="mt-0.5 text-muted-foreground">{defaultHint}</div>
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onChange({
+              kind: "override",
+              provider:
+                selection.kind === "override" ? selection.provider : "anthropic",
+              modelId:
+                selection.kind === "override" ? selection.modelId : "",
+            })
+          }
+          className={`flex-1 rounded-md border px-3 py-2 text-left text-xs transition-colors ${
+            selection.kind === "override"
+              ? "border-primary bg-primary/10"
+              : "border-border bg-background hover:bg-accent"
+          }`}
+        >
+          <div className="font-medium">Override</div>
+          <div className="mt-0.5 text-muted-foreground">{overrideHint}</div>
+        </button>
+      </div>
+
+      {selection.kind === "override" && (
+        <div className="mt-2 flex flex-col gap-2">
+          <div className="grid grid-cols-[140px_1fr] gap-2">
+            <select
+              value={selection.provider}
+              onChange={(e) => {
+                const nextProvider = e.target.value;
+                // Reset the model-id when switching between cloud and
+                // local, because the ID formats differ (cloud: opaque
+                // string like "claude-sonnet-4-6"; local: a filename).
+                onChange({
+                  kind: "override",
+                  provider: nextProvider,
+                  modelId:
+                    nextProvider === selection.provider ? selection.modelId : "",
+                });
+              }}
+              className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+            >
+              {PROVIDER_OPTIONS.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+
+            {selection.provider === "local" ? (
+              installed.length === 0 ? (
+                <div className="flex items-center rounded-md border border-dashed border-border bg-muted/40 px-3 text-xs text-muted-foreground">
+                  Erst ein Modell in den Einstellungen herunterladen.
+                </div>
+              ) : (
+                <select
+                  value={selection.modelId}
+                  onChange={(e) =>
+                    onChange({ ...selection, modelId: e.target.value })
+                  }
+                  className="h-8 rounded-md border border-border bg-background px-2 text-xs"
+                >
+                  <option value="">— Modell wählen —</option>
+                  {installed.map((m) => (
+                    <option key={m.filename} value={m.filename}>
+                      {m.filename}
+                    </option>
+                  ))}
+                </select>
+              )
+            ) : (
+              <Input
+                value={selection.modelId}
+                onChange={(e) =>
+                  onChange({ ...selection, modelId: e.target.value })
+                }
+                placeholder="z. B. claude-sonnet-4-6"
+                className="text-xs"
+              />
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function AgentEditorDialog({
   open: isOpen,
   mode,
@@ -75,6 +193,11 @@ export function AgentEditorDialog({
   const [availableSkills, setAvailableSkills] = useState<Skill[]>([]);
   const [activeSkills, setActiveSkills] = useState<string[]>([]);
   const [hitlDisabled, setHitlDisabled] = useState(false);
+  const [delegationEnabled, setDelegationEnabled] = useState(false);
+  const [delegationSystemPrompt, setDelegationSystemPrompt] = useState("");
+  const [delegationSelection, setDelegationSelection] = useState<ModelSelection>(
+    { kind: "inherit" },
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -102,6 +225,10 @@ export function AgentEditorDialog({
       setSelection(modelRefToSelection(agent.model));
       setActiveSkills(agent.skills);
       setHitlDisabled(agent.hitlDisabled);
+      const dp = agent.delegationProfile;
+      setDelegationEnabled(dp?.enabled ?? false);
+      setDelegationSystemPrompt(dp?.systemPromptOverride ?? "");
+      setDelegationSelection(modelRefToSelection(dp?.modelOverride ?? null));
     } else {
       setName("");
       setIcon("Bot");
@@ -110,6 +237,9 @@ export function AgentEditorDialog({
       setSelection({ kind: "inherit" });
       setActiveSkills([]);
       setHitlDisabled(false);
+      setDelegationEnabled(false);
+      setDelegationSystemPrompt("");
+      setDelegationSelection({ kind: "inherit" });
     }
     setError(null);
   }, [isOpen, mode, agent]);
@@ -124,10 +254,28 @@ export function AgentEditorDialog({
   }
 
   async function handleSave() {
+    if (
+      delegationEnabled &&
+      delegationSelection.kind === "override" &&
+      delegationSelection.modelId.trim().length === 0
+    ) {
+      setError(
+        "Bitte ein Modell für den Hintergrund-Worker wählen oder auf Default zurücksetzen.",
+      );
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
       const model = selectionToModelRef(selection);
+      const trimmedDelegationPrompt = delegationSystemPrompt.trim();
+      const delegationProfile: DelegationProfile = {
+        enabled: delegationEnabled,
+        systemPromptOverride: trimmedDelegationPrompt
+          ? delegationSystemPrompt
+          : null,
+        modelOverride: selectionToModelRef(delegationSelection) ?? null,
+      };
       const saved =
         mode === "create"
           ? await agentApi.create({
@@ -138,6 +286,7 @@ export function AgentEditorDialog({
               model,
               skills: activeSkills,
               hitlDisabled,
+              delegationProfile,
             })
           : await agentApi.update(agent!.id, {
               name: name.trim(),
@@ -147,6 +296,7 @@ export function AgentEditorDialog({
               model,
               skills: activeSkills,
               hitlDisabled,
+              delegationProfile,
             });
       onSaved(saved);
       onClose();
@@ -229,112 +379,14 @@ export function AgentEditorDialog({
 
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs">Modell</Label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setSelection({ kind: "inherit" })}
-                className={`flex-1 rounded-md border px-3 py-2 text-left text-xs transition-colors ${
-                  selection.kind === "inherit"
-                    ? "border-primary bg-primary/10"
-                    : "border-border bg-background hover:bg-accent"
-                }`}
-              >
-                <div className="font-medium">Default</div>
-                <div className="mt-0.5 text-muted-foreground">
-                  {inheritedHint}
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setSelection({
-                    kind: "override",
-                    provider:
-                      selection.kind === "override"
-                        ? selection.provider
-                        : "anthropic",
-                    modelId:
-                      selection.kind === "override" ? selection.modelId : "",
-                  })
-                }
-                className={`flex-1 rounded-md border px-3 py-2 text-left text-xs transition-colors ${
-                  selection.kind === "override"
-                    ? "border-primary bg-primary/10"
-                    : "border-border bg-background hover:bg-accent"
-                }`}
-              >
-                <div className="font-medium">Override</div>
-                <div className="mt-0.5 text-muted-foreground">
-                  Modell für diesen Agenten festlegen
-                </div>
-              </button>
-            </div>
-
-            {selection.kind === "override" && (
-              <div className="mt-2 flex flex-col gap-2">
-                <div className="grid grid-cols-[140px_1fr] gap-2">
-                  <select
-                    value={selection.provider}
-                    onChange={(e) => {
-                      const nextProvider = e.target.value;
-                      // Reset the model-id when switching between cloud and
-                      // local, because the ID formats differ (cloud: opaque
-                      // string like "claude-sonnet-4-6"; local: a filename).
-                      setSelection({
-                        kind: "override",
-                        provider: nextProvider,
-                        modelId:
-                          nextProvider === selection.provider
-                            ? selection.modelId
-                            : "",
-                      });
-                    }}
-                    className="h-8 rounded-md border border-border bg-background px-2 text-xs"
-                  >
-                    {PROVIDER_OPTIONS.map((p) => (
-                      <option key={p.value} value={p.value}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-
-                  {selection.provider === "local" ? (
-                    installed.length === 0 ? (
-                      <div className="flex items-center rounded-md border border-dashed border-border bg-muted/40 px-3 text-xs text-muted-foreground">
-                        Erst ein Modell in den Einstellungen herunterladen.
-                      </div>
-                    ) : (
-                      <select
-                        value={selection.modelId}
-                        onChange={(e) =>
-                          setSelection({
-                            ...selection,
-                            modelId: e.target.value,
-                          })
-                        }
-                        className="h-8 rounded-md border border-border bg-background px-2 text-xs"
-                      >
-                        <option value="">— Modell wählen —</option>
-                        {installed.map((m) => (
-                          <option key={m.filename} value={m.filename}>
-                            {m.filename}
-                          </option>
-                        ))}
-                      </select>
-                    )
-                  ) : (
-                    <Input
-                      value={selection.modelId}
-                      onChange={(e) =>
-                        setSelection({ ...selection, modelId: e.target.value })
-                      }
-                      placeholder="z. B. claude-sonnet-4-6"
-                      className="text-xs"
-                    />
-                  )}
-                </div>
-              </div>
-            )}
+            <ModelOverridePicker
+              selection={selection}
+              onChange={setSelection}
+              installed={installed}
+              defaultLabel="Default"
+              defaultHint={inheritedHint}
+              overrideHint="Modell für diesen Agenten festlegen"
+            />
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -398,6 +450,57 @@ export function AgentEditorDialog({
               </span>
             </div>
           </label>
+
+          <div className="flex flex-col gap-2 rounded-md border border-border bg-background p-2">
+            <label className="flex cursor-pointer items-start gap-2">
+              <input
+                type="checkbox"
+                checked={delegationEnabled}
+                onChange={(e) => setDelegationEnabled(e.target.checked)}
+                className="mt-0.5"
+              />
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs font-medium">
+                  Hintergrund-Worker (Beta)
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Aktiviert Bulk-Werkzeuge, die pro Item eine fokussierte
+                  Inferenz ausführen — z. B. um eine XLSX-Spalte für jede Zeile
+                  zu generieren. Die Felder unten überschreiben System-Prompt
+                  und Modell für diese inneren Aufrufe; leer = wie der Agent
+                  selbst.
+                </span>
+              </div>
+            </label>
+
+            {delegationEnabled && (
+              <div className="ml-6 flex flex-col gap-2 border-l border-border pl-3">
+                <Label
+                  htmlFor="delegation-prompt"
+                  className="text-xs"
+                >
+                  System-Prompt für den Worker
+                </Label>
+                <Textarea
+                  id="delegation-prompt"
+                  value={delegationSystemPrompt}
+                  onChange={(e) => setDelegationSystemPrompt(e.target.value)}
+                  rows={3}
+                  placeholder="leer = wie der Agent selbst"
+                  className="resize-none text-xs"
+                />
+                <Label className="text-xs">Modell für den Worker</Label>
+                <ModelOverridePicker
+                  selection={delegationSelection}
+                  onChange={setDelegationSelection}
+                  installed={installed}
+                  defaultLabel="Wie der Agent"
+                  defaultHint="Erbt das Modell des Eltern-Agenten."
+                  overrideHint="Eigenes Modell für den Worker"
+                />
+              </div>
+            )}
+          </div>
 
           {error && (
             <div className="rounded-md border border-destructive/40 bg-destructive/15 px-3 py-2 text-xs text-destructive">

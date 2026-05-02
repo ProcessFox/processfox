@@ -52,6 +52,16 @@ export type HitlPreview =
       replacements: { key: string; value: string }[];
       templatePlaceholders: string[];
       createsFile: boolean;
+    }
+  | {
+      kind: "delegateIntoXlsxColumn";
+      path: string;
+      sheet: string;
+      targetColumn: string;
+      targetCreatesColumn: boolean;
+      rowCount: number;
+      workerLabel: string;
+      samplePrompts: { rowLabel: string; renderedPrompt: string }[];
     };
 
 export type HitlDecision =
@@ -136,6 +146,32 @@ export type RunEvent =
       type: "askUserResolved";
       questionId: string;
       answer: string;
+    }
+  | {
+      type: "delegationStarted";
+      toolCallId: string;
+      total: number;
+    }
+  | {
+      type: "delegationItemDone";
+      toolCallId: string;
+      index: number;
+      total: number;
+      itemLabel: string;
+    }
+  | {
+      type: "delegationItemFailed";
+      toolCallId: string;
+      index: number;
+      total: number;
+      itemLabel: string;
+      error: string;
+    }
+  | {
+      type: "delegationFinished";
+      toolCallId: string;
+      succeeded: number;
+      failed: number;
     }
   | {
       type: "finish";

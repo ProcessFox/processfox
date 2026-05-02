@@ -12,6 +12,12 @@ export interface AgentAttachments {
 
 export type AttachmentKind = "template";
 
+export interface DelegationProfile {
+  enabled: boolean;
+  systemPromptOverride?: string | null;
+  modelOverride?: ModelRef | null;
+}
+
 export interface Agent {
   id: string;
   name: string;
@@ -23,6 +29,7 @@ export interface Agent {
   skillSettings: Record<string, SkillSetting>;
   hitlDisabled: boolean;
   attachments: AgentAttachments;
+  delegationProfile: DelegationProfile | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -35,6 +42,7 @@ export interface AgentDraft {
   model?: ModelRef;
   skills?: string[];
   hitlDisabled?: boolean;
+  delegationProfile?: DelegationProfile;
 }
 
 export interface AgentUpdate {
@@ -45,4 +53,5 @@ export interface AgentUpdate {
   model?: ModelRef;
   skills?: string[];
   hitlDisabled?: boolean;
+  delegationProfile?: DelegationProfile;
 }

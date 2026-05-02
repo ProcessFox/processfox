@@ -31,6 +31,22 @@ pub struct AgentAttachments {
     pub template_path: Option<PathBuf>,
 }
 
+/// Stateless inference profile used by the agent's fan-out tools. Only
+/// active when `enabled = true`; otherwise the worker tools aren't
+/// registered for this agent. Both override fields are `None` by default
+/// — meaning the worker inherits the parent agent's system prompt /
+/// model. Deliberately no tools, no folder, no own history in v1.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DelegationProfile {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub system_prompt_override: Option<String>,
+    #[serde(default)]
+    pub model_override: Option<ModelRef>,
+}
+
 impl AgentAttachments {
     pub fn is_empty(&self) -> bool {
         self.template_path.is_none()
@@ -75,6 +91,8 @@ pub struct Agent {
     pub hitl_disabled: bool,
     #[serde(default)]
     pub attachments: AgentAttachments,
+    #[serde(default)]
+    pub delegation_profile: Option<DelegationProfile>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -96,6 +114,8 @@ pub struct AgentDraft {
     pub skills: Vec<String>,
     #[serde(default)]
     pub hitl_disabled: bool,
+    #[serde(default)]
+    pub delegation_profile: Option<DelegationProfile>,
 }
 
 /// Input shape when updating an existing agent. Every field is optional.
@@ -116,6 +136,8 @@ pub struct AgentUpdate {
     pub skills: Option<Vec<String>>,
     #[serde(default)]
     pub hitl_disabled: Option<bool>,
+    #[serde(default)]
+    pub delegation_profile: Option<DelegationProfile>,
 }
 
 impl Agent {
@@ -132,6 +154,7 @@ impl Agent {
             skill_settings: Default::default(),
             hitl_disabled: draft.hitl_disabled,
             attachments: AgentAttachments::default(),
+            delegation_profile: draft.delegation_profile,
             created_at: now.clone(),
             updated_at: now,
         }
@@ -168,6 +191,9 @@ impl Agent {
         }
         if let Some(v) = update.hitl_disabled {
             self.hitl_disabled = v;
+        }
+        if let Some(v) = update.delegation_profile {
+            self.delegation_profile = Some(v);
         }
         self.updated_at = Utc::now().to_rfc3339();
     }

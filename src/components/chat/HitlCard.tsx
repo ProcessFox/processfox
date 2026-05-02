@@ -8,6 +8,7 @@ import {
   FileText,
   Loader2,
   Sheet as SheetIcon,
+  Workflow,
   X,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -133,6 +134,13 @@ function headingFor(preview: HitlPreview): {
       return preview.createsFile
         ? { Icon: FileStack, label: "Word-Dokument aus Vorlage erstellen" }
         : { Icon: FileStack, label: "Word-Dokument aus Vorlage überschreiben" };
+    case "delegateIntoXlsxColumn": {
+      const n = preview.rowCount;
+      return {
+        Icon: Workflow,
+        label: `${n} ${n === 1 ? "Zeile" : "Zeilen"} per Worker bearbeiten`,
+      };
+    }
   }
 }
 
@@ -222,7 +230,69 @@ function PreviewBody({ preview }: { preview: HitlPreview }) {
           createsFile={preview.createsFile}
         />
       );
+    case "delegateIntoXlsxColumn":
+      return (
+        <DelegateXlsxSection
+          sheet={preview.sheet}
+          targetColumn={preview.targetColumn}
+          targetCreatesColumn={preview.targetCreatesColumn}
+          rowCount={preview.rowCount}
+          workerLabel={preview.workerLabel}
+          samplePrompts={preview.samplePrompts}
+        />
+      );
   }
+}
+
+function DelegateXlsxSection({
+  sheet,
+  targetColumn,
+  targetCreatesColumn,
+  rowCount,
+  workerLabel,
+  samplePrompts,
+}: {
+  sheet: string;
+  targetColumn: string;
+  targetCreatesColumn: boolean;
+  rowCount: number;
+  workerLabel: string;
+  samplePrompts: { rowLabel: string; renderedPrompt: string }[];
+}) {
+  return (
+    <>
+      <div className="flex flex-col gap-1">
+        <SectionLabel>
+          Sheet „{sheet}" — Spalte „{targetColumn}"
+          {targetCreatesColumn ? " (wird neu angelegt)" : " (wird überschrieben)"}
+        </SectionLabel>
+        <div className="text-xs opacity-90">
+          {rowCount} {rowCount === 1 ? "Zeile" : "Zeilen"} werden seriell vom
+          Worker bearbeitet.
+        </div>
+        <div className="text-xs opacity-80">
+          Worker:{" "}
+          <span className="font-mono opacity-90">{workerLabel}</span>
+        </div>
+      </div>
+      {samplePrompts.length > 0 && (
+        <Section
+          label={`Beispiel-Prompts (${samplePrompts.length} von ${rowCount})`}
+          defaultOpen
+        >
+          {samplePrompts
+            .map((s) => `── ${s.rowLabel} ──\n${s.renderedPrompt}`)
+            .join("\n\n")}
+        </Section>
+      )}
+      {!targetCreatesColumn && (
+        <p className="text-xs opacity-80">
+          ⚠ Die Spalte „{targetColumn}" enthält ggf. bereits Werte. Diese werden
+          beim Lauf überschrieben.
+        </p>
+      )}
+    </>
+  );
 }
 
 function Section({

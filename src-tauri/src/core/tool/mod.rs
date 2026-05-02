@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::path::PathBuf;
 use tauri::AppHandle;
+use tokio_util::sync::CancellationToken;
 
 use super::error::CoreResult;
 
@@ -25,11 +26,21 @@ pub struct ToolSchema {
 /// Runtime context handed to each tool on execution. Tools must use
 /// `agent_folder` as the sandbox root; writes and reads outside it are
 /// rejected in `ensure_in_agent_folder`.
+///
+/// `channel` is the Tauri event channel for the current chat run, formatted
+/// as `chat:run:{run_id}`. Long-running tools (fan-outs) emit progress
+/// events on it. `tool_call_id` is the id of the *current* tool call —
+/// progress events tag it so the UI can scope them to the right card.
+/// `cancel` is the chat run's cancellation token — tools that loop must
+/// poll it between iterations to stop promptly.
 #[derive(Debug, Clone)]
 pub struct ToolContext {
     pub agent_id: String,
     pub agent_folder: PathBuf,
     pub app: AppHandle,
+    pub channel: String,
+    pub tool_call_id: String,
+    pub cancel: CancellationToken,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -134,6 +145,26 @@ pub enum HitlPreview {
         template_placeholders: Vec<String>,
         creates_file: bool,
     },
+    /// Fan-out a per-row LLM generation into a target column of an Excel
+    /// workbook. The preview shows the affected row count, what worker
+    /// configuration will run, and a few sample rendered prompts so the
+    /// reviewer can spot template mistakes before the batch starts.
+    DelegateIntoXlsxColumn {
+        path: String,
+        sheet: String,
+        target_column: String,
+        target_creates_column: bool,
+        row_count: u32,
+        worker_label: String,
+        sample_prompts: Vec<DelegationSamplePrompt>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DelegationSamplePrompt {
+    pub row_label: String,
+    pub rendered_prompt: String,
 }
 
 #[derive(Debug, Clone, Serialize)]

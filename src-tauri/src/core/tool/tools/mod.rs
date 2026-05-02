@@ -1,6 +1,7 @@
 pub mod append_to_docx;
 pub mod append_to_md;
 pub mod ask_user;
+pub mod delegate_into_xlsx_column;
 pub mod grep_in_files;
 pub mod list_folder;
 pub mod read_docx;
@@ -17,6 +18,7 @@ pub mod write_xlsx;
 pub use append_to_docx::AppendToDocxTool;
 pub use append_to_md::AppendToMdTool;
 pub use ask_user::AskUserTool;
+pub use delegate_into_xlsx_column::DelegateIntoXlsxColumnTool;
 pub use grep_in_files::GrepInFilesTool;
 pub use list_folder::ListFolderTool;
 pub use read_docx::ReadDocxTool;

@@ -2,6 +2,7 @@ use std::sync::{Arc, OnceLock};
 
 use crate::core::agent::AgentRepo;
 use crate::core::chat::{ChatRepo, ChatRunner};
+use crate::core::delegation::DelegationRunner;
 use crate::core::llm::ProviderRegistry;
 use crate::core::models::{DownloadRunner, InstalledScanner, ModelCatalog};
 use crate::core::settings::SettingsStore;
@@ -18,6 +19,7 @@ pub struct AppState {
     pub tools: ToolRegistry,
     pub skills: SkillRegistry,
     chat_runner: Arc<OnceLock<ChatRunner>>,
+    delegation_runner: Arc<OnceLock<DelegationRunner>>,
     download_runner: Arc<OnceLock<DownloadRunner>>,
     folder_watcher: Arc<OnceLock<FolderWatcher>>,
 }
@@ -37,6 +39,7 @@ impl AppState {
             tools,
             skills,
             chat_runner: Arc::new(OnceLock::new()),
+            delegation_runner: Arc::new(OnceLock::new()),
             download_runner: Arc::new(OnceLock::new()),
             folder_watcher: Arc::new(OnceLock::new()),
         }
@@ -75,6 +78,12 @@ impl AppState {
                     self.skills.clone(),
                 )
             })
+            .clone()
+    }
+
+    pub fn delegation_runner(&self) -> DelegationRunner {
+        self.delegation_runner
+            .get_or_init(|| DelegationRunner::new(self.providers.clone(), self.settings()))
             .clone()
     }
 

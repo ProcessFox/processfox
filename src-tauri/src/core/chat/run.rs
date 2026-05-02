@@ -86,6 +86,35 @@ pub enum RunEvent {
         question_id: String,
         answer: String,
     },
+    /// A fan-out tool (e.g. `delegate_into_xlsx_column`) has begun
+    /// processing N items. Tied to the parent `tool_call_id` so the UI can
+    /// render progress inside the existing tool-call card.
+    DelegationStarted {
+        tool_call_id: String,
+        total: u32,
+    },
+    /// One item of a fan-out has finished. `index` is 1-based.
+    DelegationItemDone {
+        tool_call_id: String,
+        index: u32,
+        total: u32,
+        item_label: String,
+    },
+    /// One item failed (e.g. provider error). The fan-out continues with the
+    /// remaining items unless the run was cancelled.
+    DelegationItemFailed {
+        tool_call_id: String,
+        index: u32,
+        total: u32,
+        item_label: String,
+        error: String,
+    },
+    /// Fan-out finished — terminal counter event for this tool_call_id.
+    DelegationFinished {
+        tool_call_id: String,
+        succeeded: u32,
+        failed: u32,
+    },
     Finish {
         reason: String,
         message: ChatMessage,
@@ -320,9 +349,7 @@ async fn react_loop(
     // Build initial turn list from persisted history, trimmed to the window.
     let history = repo.load(&agent.id)?;
     let mut turns = history_to_turns(&history);
-    if turns.len() > HISTORY_WINDOW {
-        turns.drain(0..turns.len() - HISTORY_WINDOW);
-    }
+    trim_history(&mut turns, HISTORY_WINDOW);
 
     let mut run_totals = TokenUsage::default();
     let mut run_totals_seen = false;
@@ -473,6 +500,9 @@ async fn react_loop(
                 agent_id: agent.id.clone(),
                 agent_folder: folder,
                 app: app.clone(),
+                channel: channel.to_string(),
+                tool_call_id: call.id.clone(),
+                cancel: cancel.clone(),
             };
 
             // Pre-flight: if the tool wants approval, gate it here. Skip the
@@ -838,6 +868,14 @@ fn collect_tool_schemas(
             }
         }
     }
+    // Fan-out tools live outside the regular skill→tool plumbing — they are
+    // gated by the agent's delegation profile, not by skill membership, so
+    // that flipping the worker on/off doesn't require touching skills.
+    if agent.delegation_profile.as_ref().is_some_and(|p| p.enabled)
+        && !wanted.iter().any(|n| n == "delegate_into_xlsx_column")
+    {
+        wanted.push("delegate_into_xlsx_column".to_string());
+    }
     tools.schemas_for(&wanted)
 }
 
@@ -858,4 +896,139 @@ fn history_to_turns(history: &[ChatMessage]) -> Vec<ChatTurn> {
         });
     }
     turns
+}
+
+/// Trim the turn list to at most `window` turns *and* heal the leading
+/// boundary. A naive `drain` can land mid-pair, leaving an orphan
+/// tool_result whose matching tool_use was dropped — Anthropic rejects that
+/// with a 400, and OpenAI is similarly strict. We also drop any leading
+/// assistant turn because Anthropic requires the first message in a request
+/// to be a user turn.
+///
+/// The result may be shorter than `window`; it is never longer.
+fn trim_history(turns: &mut Vec<ChatTurn>, window: usize) {
+    if turns.len() > window {
+        turns.drain(0..turns.len() - window);
+    }
+    while turns.first().is_some_and(|t| {
+        t.role != ChatRole::User || !t.tool_results.is_empty() || !t.tool_calls.is_empty()
+    }) {
+        turns.remove(0);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn user(content: &str) -> ChatTurn {
+        ChatTurn {
+            role: ChatRole::User,
+            content: content.to_string(),
+            tool_calls: Vec::new(),
+            tool_results: Vec::new(),
+        }
+    }
+
+    fn assistant_text(content: &str) -> ChatTurn {
+        ChatTurn {
+            role: ChatRole::Assistant,
+            content: content.to_string(),
+            tool_calls: Vec::new(),
+            tool_results: Vec::new(),
+        }
+    }
+
+    fn assistant_tool_call(id: &str, name: &str) -> ChatTurn {
+        ChatTurn {
+            role: ChatRole::Assistant,
+            content: String::new(),
+            tool_calls: vec![ToolCall {
+                id: id.to_string(),
+                name: name.to_string(),
+                arguments: serde_json::json!({}),
+            }],
+            tool_results: Vec::new(),
+        }
+    }
+
+    fn tool_result(use_id: &str, content: &str) -> ChatTurn {
+        ChatTurn {
+            role: ChatRole::User,
+            content: String::new(),
+            tool_calls: Vec::new(),
+            tool_results: vec![ToolResult {
+                tool_use_id: use_id.to_string(),
+                content: content.to_string(),
+                is_error: false,
+            }],
+        }
+    }
+
+    #[test]
+    fn trim_history_drops_leading_orphan_tool_result() {
+        // Window cuts off the assistant tool_use; the matching tool_result
+        // would land at position 0 and Anthropic would reject it.
+        let mut turns = vec![
+            tool_result("call_1", "result"),
+            assistant_text("ok"),
+            user("next question"),
+        ];
+        trim_history(&mut turns, 10);
+        assert_eq!(turns.len(), 1);
+        assert_eq!(turns[0].content, "next question");
+    }
+
+    #[test]
+    fn trim_history_drops_leading_assistant_turn() {
+        // Window starts on an assistant text turn — first message must be
+        // user, so drop it.
+        let mut turns = vec![assistant_text("answer"), user("follow up")];
+        trim_history(&mut turns, 10);
+        assert_eq!(turns.len(), 1);
+        assert_eq!(turns[0].content, "follow up");
+    }
+
+    #[test]
+    fn trim_history_keeps_intact_pair_at_boundary() {
+        // The trimmed window starts cleanly with a user turn, then has an
+        // intact tool_use → tool_result pair. Nothing should be dropped.
+        let mut turns = vec![
+            user("question"),
+            assistant_tool_call("call_1", "list_folder"),
+            tool_result("call_1", "files: …"),
+            assistant_text("here's what I found"),
+            user("thanks"),
+        ];
+        let before = turns.len();
+        trim_history(&mut turns, 10);
+        assert_eq!(turns.len(), before);
+    }
+
+    #[test]
+    fn trim_history_walks_through_chain_of_orphans() {
+        // The window ate two pairs midway, leaving alternating orphan
+        // tool_results and assistant turns until a clean user turn appears.
+        let mut turns = vec![
+            tool_result("call_1", "r1"),
+            assistant_text("text"),
+            tool_result("call_2", "r2"),
+            assistant_text("more text"),
+            user("real question"),
+        ];
+        trim_history(&mut turns, 10);
+        assert_eq!(turns.len(), 1);
+        assert_eq!(turns[0].content, "real question");
+    }
+
+    #[test]
+    fn trim_history_respects_window_size() {
+        // 30 turns, window 5: drain to last 5, then the heal loop only
+        // touches the leading orphan if any.
+        let mut turns: Vec<ChatTurn> = (0..30).map(|i| user(&format!("u{i}"))).collect();
+        trim_history(&mut turns, 5);
+        assert_eq!(turns.len(), 5);
+        assert_eq!(turns[0].content, "u25");
+        assert_eq!(turns[4].content, "u29");
+    }
 }

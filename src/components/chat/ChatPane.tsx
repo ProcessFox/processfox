@@ -139,6 +139,7 @@ export function ChatPane({
                     status={t.status}
                     arguments={t.arguments}
                     result={t.content}
+                    delegation={t.delegation}
                   />
                 ))}
               </div>

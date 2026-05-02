@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AlertTriangle, Check, ChevronRight, Loader2 } from "lucide-react";
 
+import type { DelegationProgress } from "@/hooks/useAgentChat";
 import { iconForTool } from "@/lib/toolIcons";
 import { cn } from "@/lib/utils";
 
@@ -11,9 +12,16 @@ type Props = {
   status: ToolChipStatus;
   arguments?: unknown;
   result?: string;
+  delegation?: DelegationProgress;
 };
 
-export function ToolCallChip({ name, status, arguments: args, result }: Props) {
+export function ToolCallChip({
+  name,
+  status,
+  arguments: args,
+  result,
+  delegation,
+}: Props) {
   const [expanded, setExpanded] = useState(false);
 
   const argsText = (() => {
@@ -66,6 +74,8 @@ export function ToolCallChip({ name, status, arguments: args, result }: Props) {
         )}
       </button>
 
+      {delegation && <DelegationProgressStrip progress={delegation} />}
+
       {expanded && (
         <div className="mt-1 flex flex-col gap-1.5 text-xs">
           {argsText && (
@@ -86,6 +96,49 @@ export function ToolCallChip({ name, status, arguments: args, result }: Props) {
               </pre>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DelegationProgressStrip({
+  progress,
+}: {
+  progress: DelegationProgress;
+}) {
+  const done = progress.succeeded + progress.failed;
+  const pct = progress.total > 0 ? Math.min(100, (done / progress.total) * 100) : 0;
+  const currentLine = progress.lastItem
+    ? progress.finished
+      ? `Fertig: ${progress.succeeded} von ${progress.total} geschrieben${
+          progress.failed > 0 ? ` · ${progress.failed} Fehler` : ""
+        }`
+      : `${progress.lastItem.label} · ${done} von ${progress.total}`
+    : `Starte … ${progress.total} ${
+        progress.total === 1 ? "Eintrag" : "Einträge"
+      }`;
+
+  return (
+    <div className="mt-0.5 flex flex-col gap-1">
+      <div className="flex items-baseline justify-between gap-2 text-[11px] opacity-90">
+        <span className="truncate">{currentLine}</span>
+        <span className="shrink-0 font-mono opacity-70">
+          {done}/{progress.total}
+        </span>
+      </div>
+      <div className="h-1 w-full overflow-hidden rounded-full bg-background/40">
+        <div
+          className={cn(
+            "h-full transition-[width] duration-200",
+            progress.failed > 0 ? "bg-amber-500" : "bg-emerald-500",
+          )}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {progress.lastError && (
+        <div className="truncate text-[11px] opacity-75" title={progress.lastError}>
+          Letzter Fehler: {progress.lastError}
         </div>
       )}
     </div>

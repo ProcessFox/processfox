@@ -30,12 +30,24 @@ export function resolveAgentModel(
   return { provider, modelId };
 }
 
+export type DelegationProgress = {
+  total: number;
+  succeeded: number;
+  failed: number;
+  /** Most recently completed item — used to render "Zeile X von N: <label>". */
+  lastItem?: { index: number; label: string };
+  lastError?: string;
+  /** True after the terminal `delegationFinished` event has arrived. */
+  finished: boolean;
+};
+
 export type PendingToolCall = {
   id: string;
   name: string;
   arguments: unknown;
   status: "running" | "done" | "error";
   content?: string;
+  delegation?: DelegationProgress;
 };
 
 type StreamState = {
@@ -208,6 +220,76 @@ export function useAgentChat(
             case "askUserResolved":
               setPendingQuestion((prev) =>
                 prev && prev.questionId === event.questionId ? null : prev,
+              );
+              break;
+            case "delegationStarted":
+              setPendingTools((prev) =>
+                prev.map((t) =>
+                  t.id === event.toolCallId
+                    ? {
+                        ...t,
+                        delegation: {
+                          total: event.total,
+                          succeeded: 0,
+                          failed: 0,
+                          finished: false,
+                        },
+                      }
+                    : t,
+                ),
+              );
+              break;
+            case "delegationItemDone":
+              setPendingTools((prev) =>
+                prev.map((t) => {
+                  if (t.id !== event.toolCallId || !t.delegation) return t;
+                  return {
+                    ...t,
+                    delegation: {
+                      ...t.delegation,
+                      succeeded: t.delegation.succeeded + 1,
+                      lastItem: {
+                        index: event.index,
+                        label: event.itemLabel,
+                      },
+                    },
+                  };
+                }),
+              );
+              break;
+            case "delegationItemFailed":
+              setPendingTools((prev) =>
+                prev.map((t) => {
+                  if (t.id !== event.toolCallId || !t.delegation) return t;
+                  return {
+                    ...t,
+                    delegation: {
+                      ...t.delegation,
+                      failed: t.delegation.failed + 1,
+                      lastItem: {
+                        index: event.index,
+                        label: event.itemLabel,
+                      },
+                      lastError: event.error,
+                    },
+                  };
+                }),
+              );
+              break;
+            case "delegationFinished":
+              setPendingTools((prev) =>
+                prev.map((t) => {
+                  if (t.id !== event.toolCallId || !t.delegation) return t;
+                  return {
+                    ...t,
+                    delegation: {
+                      ...t.delegation,
+                      succeeded: event.succeeded,
+                      failed: event.failed,
+                      finished: true,
+                    },
+                  };
+                }),
               );
               break;
             case "finish":

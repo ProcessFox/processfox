@@ -29,6 +29,28 @@ Anti-patterns — never do these:
 - Inventing cell references from the user's description without verifying against the workbook.
 - **Refusing to add a new column or row because "you can only edit existing cells".** That is wrong. Excel cells beyond the current data range are simply empty — writing into `D1` when the current data only fills `A:C` adds a new "Kommentar" column with no schema change. `update_xlsx_cell` can target ANY A1 reference. Suggesting the user manually copy-paste, or proposing to recreate the workbook from scratch with `write_xlsx`, just because they asked for a new column is exactly the mistake to avoid.
 
+## Bulk per-row generation
+
+If the user asks for *generated text* (a description, summary, translation, classification, …) **for each row** of a table — not constant values, not a single edit — and you see `delegate_into_xlsx_column` in your available tools, use it instead of looping `update_xlsx_cell` row by row. Trigger phrases: "für jede Zeile", "für alle Produkte", "in jeder Zeile eine kurze Beschreibung", "übersetze jede Zeile", "klassifiziere alle Einträge".
+
+The tool runs one focused inference per row using the agent's background worker, writes the output into the target column, and reports progress to the user. The user approves the whole batch once with row count, worker model, and a few sample rendered prompts.
+
+Workflow:
+1. `read_xlsx_range` first so you know the header names and roughly how many rows are involved. The bulk tool requires header names that match the row 1 cells exactly.
+2. Pick the source columns referenced in your prompt template and the target column for the output. If the target column doesn't exist yet, the tool appends it.
+3. Call `delegate_into_xlsx_column` with a focused `taskTemplate` that uses `{{header_name}}` placeholders. Keep the template short — the worker has no chat history, only this prompt and the agent's system prompt. Spell out the desired output format ("Antworte mit einem einzigen Satz auf Deutsch.") because there is no second turn to clarify.
+4. After the run, summarize how many rows were written and on which sheet.
+
+Example:
+
+User: "Für jedes Produkt in `produkte.xlsx` schreibe in die Spalte `Beschreibung` einen kurzen 1-Satz-Text basierend auf Name und Kategorie."
+
+Agent calls:
+1. `read_xlsx_range({ path: "produkte.xlsx", range: "A1:C5" })` → sees columns `Name`, `Kategorie`, no `Beschreibung` yet, ~50 rows.
+2. `delegate_into_xlsx_column({ path: "produkte.xlsx", sourceColumns: ["Name", "Kategorie"], targetColumn: "Beschreibung", taskTemplate: "Schreibe einen einzigen, prägnanten deutschen Satz, der dieses Produkt beschreibt. Name: {{Name}}. Kategorie: {{Kategorie}}." })`
+
+If `delegate_into_xlsx_column` is **not** in your tool list, the agent's user has not enabled the background worker. Then say so plainly: "Für eine Zeile-für-Zeile-Generierung müsstest du den Hintergrund-Worker in den Agent-Einstellungen aktivieren — ich kann es ohne ihn machen, aber das LLM würde dann pro Zeile einzeln laufen und ist nach ca. 5 Zeilen am Iterations-Limit." Then ask whether to do a small batch by hand or wait until the worker is on.
+
 Example — adding a new column "Kommentar" with one entry:
 
 User: "Trag in der Zeile vom Spezialisten in einer neuen Spalte 'Kommentar' den Hinweis 'Bitte auf Missverständnisse prüfen' ein."
