@@ -4,13 +4,32 @@ pub mod tools;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::AppHandle;
 use tokio_util::sync::CancellationToken;
 
 use super::error::CoreResult;
 
 pub use registry::ToolRegistry;
+
+/// Build the `, modified <ISO>` suffix that gets appended to every
+/// content-read tool's header line — e.g. `--- foo.md (1006 bytes, modified
+/// 2026-05-02T10:31:00Z) ---`. The mtime lets the freshness tracker
+/// bootstrap a precise baseline when scanning chat history after a process
+/// restart. Returns an empty string if metadata can't be read; that just
+/// degrades the bootstrap to a "current time" fallback for that file.
+///
+/// Format is RFC 3339 UTC with seconds resolution. Keep stable —
+/// `core/chat/freshness.rs::parse_mtime_from_header` depends on it.
+pub fn mtime_suffix(path: &Path) -> String {
+    match std::fs::metadata(path).and_then(|m| m.modified()) {
+        Ok(t) => {
+            let dt: chrono::DateTime<chrono::Utc> = t.into();
+            format!(", modified {}", dt.format("%Y-%m-%dT%H:%M:%SZ"))
+        }
+        Err(_) => String::new(),
+    }
+}
 
 /// JSON-Schema description of a tool, used to tell the LLM what tools are
 /// available and what shape their arguments take.

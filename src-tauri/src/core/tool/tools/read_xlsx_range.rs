@@ -144,15 +144,24 @@ fn extract_range(path: &std::path::Path, params: &Input) -> CoreResult<String> {
         )));
     }
 
+    let mtime = crate::core::tool::mtime_suffix(path);
+    // mtime_suffix yields ", modified <ts>" — flip to " · modified <ts>" to
+    // match the xlsx header's middot separator style.
+    let mtime_segment = if mtime.is_empty() {
+        String::new()
+    } else {
+        format!(" ·{}", mtime.trim_start_matches(','))
+    };
     let mut out = format!(
-        "--- {} · sheet='{}' · {}:{} ---\n",
+        "--- {} · sheet='{}' · {}:{}{} ---\n",
         params.path,
         sheet_name,
         params.start.as_deref().unwrap_or("A1"),
         params
             .end
             .as_deref()
-            .unwrap_or(&col_letter(end_col).to_string())
+            .unwrap_or(&col_letter(end_col).to_string()),
+        mtime_segment
     );
     for row in start_row..=end_row {
         let mut line = String::new();

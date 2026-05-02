@@ -79,7 +79,12 @@ impl Tool for ReadFileTool {
             }
         };
 
-        let mut body = format!("--- {} ({} bytes) ---\n{text}", parsed.path, size);
+        let mut body = format!(
+            "--- {} ({} bytes{}) ---\n{text}",
+            parsed.path,
+            size,
+            crate::core::tool::mtime_suffix(&target)
+        );
         if truncate {
             body.push_str(&format!(
                 "\n\n[truncated — showing first {MAX_BYTES} bytes of {size}]"

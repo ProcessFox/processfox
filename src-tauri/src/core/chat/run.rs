@@ -7,7 +7,7 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use super::freshness::{FreshnessTracker, StaleEntry, StaleReason};
+use super::freshness::{is_content_read_tool, FreshnessTracker, StaleEntry, StaleReason};
 use super::repo::{ChatMessage, ChatRepo, MessageRole};
 use crate::core::agent::Agent;
 use crate::core::error::{CoreError, CoreResult};
@@ -354,6 +354,16 @@ async fn react_loop(
 
     // Build initial turn list from persisted history, trimmed to the window.
     let history = repo.load(&agent.id)?;
+
+    // First chat run for this agent in this process: replay history into
+    // the freshness tracker so files read in earlier ProcessFox sessions
+    // still carry a baseline mtime. Idempotent — internal guard.
+    if let Some(folder) = agent_folder.as_deref() {
+        freshness
+            .bootstrap_from_history(&agent.id, &history, folder)
+            .await;
+    }
+
     let mut turns = history_to_turns(&history);
     trim_history(&mut turns, HISTORY_WINDOW);
 
@@ -946,17 +956,6 @@ fn trim_history(turns: &mut Vec<ChatTurn>, window: usize) {
     }) {
         turns.remove(0);
     }
-}
-
-/// Tools whose successful execution loads file contents into the LLM's
-/// view. Listed explicitly so non-content reads (`list_folder`,
-/// `grep_in_files`, `read_skill`) don't trigger spurious staleness
-/// warnings — those don't establish a "snapshot of file X".
-fn is_content_read_tool(name: &str) -> bool {
-    matches!(
-        name,
-        "read_file" | "read_docx" | "read_pdf" | "read_xlsx_range"
-    )
 }
 
 /// Build the one-line German hint to prepend to a user turn when files the

@@ -66,24 +66,26 @@ impl Tool for ReadDocxTool {
             .map_err(|e| CoreError::Llm(format!("DOCX-Extraktion abgebrochen: {e}")))??;
 
         let total_bytes = extracted.len();
+        let mtime = crate::core::tool::mtime_suffix(&target);
         let body = if total_bytes > MAX_OUTPUT_BYTES {
             let truncated: String = extracted.chars().take(MAX_OUTPUT_BYTES / 4).collect();
             format!(
-                "--- {} ({} bytes extracted, truncated) ---\n{}\n\n[truncated — extracted text exceeds {} KB]",
+                "--- {} ({} bytes extracted, truncated{}) ---\n{}\n\n[truncated — extracted text exceeds {} KB]",
                 parsed.path,
                 total_bytes,
+                mtime,
                 truncated,
                 MAX_OUTPUT_BYTES / 1024
             )
         } else if extracted.trim().is_empty() {
             format!(
-                "--- {} ({} bytes) ---\n[empty extraction — document had no text content]",
-                parsed.path, total_bytes
+                "--- {} ({} bytes{}) ---\n[empty extraction — document had no text content]",
+                parsed.path, total_bytes, mtime
             )
         } else {
             format!(
-                "--- {} ({} bytes) ---\n{}",
-                parsed.path, total_bytes, extracted
+                "--- {} ({} bytes{}) ---\n{}",
+                parsed.path, total_bytes, mtime, extracted
             )
         };
 
