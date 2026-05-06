@@ -2,7 +2,7 @@
 
 **Lokale KI-Agenten für Einsteiger.**
 
-[![MIT License](https://img.shields.io/badge/Lizenz-MIT-blue.svg)](LICENSE)
+[![GPL v3 License](https://img.shields.io/badge/Lizenz-GPL--v3-blue.svg)](LICENSE)
 [![Tauri v2](https://img.shields.io/badge/Tauri-v2-FFC131?logo=tauri&logoColor=white)](https://tauri.app)
 [![macOS](https://img.shields.io/badge/macOS-supported-success?logo=apple)](https://github.com/ProcessFox/processfox/releases)
 [![Windows](https://img.shields.io/badge/Windows-supported-success?logo=windows)](https://github.com/ProcessFox/processfox/releases)
@@ -122,4 +122,4 @@ Siehe [CLAUDE.md](CLAUDE.md) für Arbeits-Anweisungen, wenn du Claude Code zur E
 
 ## Lizenz
 
-MIT — siehe [LICENSE](LICENSE).
+GPL v3 — siehe [LICENSE](LICENSE).
