@@ -48,6 +48,17 @@ pub async fn set_first_run_done(state: State<'_, AppState>) -> Result<Settings, 
 }
 
 #[tauri::command]
+pub async fn set_custom_openai_base_url(
+    url: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<Settings, CommandError> {
+    state
+        .settings()
+        .update(|s| s.custom_openai_base_url = url)
+        .map_err(Into::into)
+}
+
+#[tauri::command]
 pub async fn available_providers(state: State<'_, AppState>) -> Result<Vec<String>, CommandError> {
     Ok(state
         .providers

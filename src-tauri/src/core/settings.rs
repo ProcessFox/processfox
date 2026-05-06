@@ -20,6 +20,10 @@ pub struct Settings {
     /// Flipped to `true` after the first-run onboarding completes.
     #[serde(default)]
     pub first_run_done: bool,
+    /// Base URL for the generic "OpenAI-compatible" custom provider
+    /// (e.g. `https://api.cortecs.ai/v1`, `http://localhost:11434/v1`).
+    #[serde(default)]
+    pub custom_openai_base_url: Option<String>,
 }
 
 #[derive(Debug, Clone)]

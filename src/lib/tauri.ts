@@ -122,6 +122,8 @@ export const settingsApi = {
   setDefaultModel: (provider: string, model: string | null) =>
     invoke<Settings>("set_default_model", { provider, model }),
   setFirstRunDone: () => invoke<Settings>("set_first_run_done"),
+  setCustomOpenAiBaseUrl: (url: string | null) =>
+    invoke<Settings>("set_custom_openai_base_url", { url }),
   availableProviders: () => invoke<string[]>("available_providers"),
 };
 

@@ -10,8 +10,9 @@ use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter};
 
 use crate::core::llm::{
-    anthropic::AnthropicProvider, local_gguf::LocalGgufProvider, openai::OpenAiProvider,
-    openrouter::OpenRouterProvider, ProviderRegistry,
+    anthropic::AnthropicProvider, cortecs::CortecsProvider,
+    custom_openai::CustomOpenAiProvider, local_gguf::LocalGgufProvider,
+    openai::OpenAiProvider, openrouter::OpenRouterProvider, ProviderRegistry,
 };
 use crate::core::models::ModelCatalog;
 use crate::core::skill::SkillRegistry;
@@ -76,10 +77,14 @@ pub fn run() {
             paths.ensure_dirs()?;
             tracing::info!(root = %paths.root().display(), "ProcessFox app data initialized");
 
+            let settings_store = crate::core::settings::SettingsStore::new(&paths);
+
             let mut registry = ProviderRegistry::new();
             registry.register(Arc::new(AnthropicProvider::new()?));
             registry.register(Arc::new(OpenAiProvider::new()?));
             registry.register(Arc::new(OpenRouterProvider::new()?));
+            registry.register(Arc::new(CortecsProvider::new()?));
+            registry.register(Arc::new(CustomOpenAiProvider::new(settings_store)?));
             registry.register(Arc::new(LocalGgufProvider::new(
                 paths.models_downloads_dir(),
             )));
@@ -133,6 +138,7 @@ pub fn run() {
             commands::settings::set_default_provider,
             commands::settings::set_default_model,
             commands::settings::set_first_run_done,
+            commands::settings::set_custom_openai_base_url,
             commands::settings::available_providers,
             commands::secrets::set_api_key,
             commands::secrets::has_api_key,

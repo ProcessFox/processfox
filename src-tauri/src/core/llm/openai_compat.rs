@@ -20,7 +20,7 @@ use crate::core::tool::ToolSchema;
 pub struct OpenAiCompat {
     pub provider_id: &'static str,
     pub secret_key: &'static str,
-    pub api_base: &'static str,
+    pub api_base: String,
     pub extra_headers: &'static [(&'static str, &'static str)],
     /// Whether to send `stream_options: { include_usage: true }` so the
     /// final stream chunk carries a `usage` block. Standard OpenAI and
@@ -217,7 +217,7 @@ impl OpenAiCompat {
     pub fn new(
         provider_id: &'static str,
         secret_key: &'static str,
-        api_base: &'static str,
+        api_base: &str,
         extra_headers: &'static [(&'static str, &'static str)],
         include_usage: bool,
     ) -> CoreResult<Self> {
@@ -228,11 +228,31 @@ impl OpenAiCompat {
         Ok(Self {
             provider_id,
             secret_key,
-            api_base,
+            api_base: api_base.to_string(),
             extra_headers,
             include_usage,
             http,
         })
+    }
+
+    /// Build from an existing HTTP client — avoids creating a new connection
+    /// pool when the caller already holds one (e.g. `CustomOpenAiProvider`).
+    pub fn from_parts(
+        provider_id: &'static str,
+        secret_key: &'static str,
+        api_base: String,
+        extra_headers: &'static [(&'static str, &'static str)],
+        include_usage: bool,
+        http: reqwest::Client,
+    ) -> Self {
+        Self {
+            provider_id,
+            secret_key,
+            api_base,
+            extra_headers,
+            include_usage,
+            http,
+        }
     }
 
     fn apply_extras(&self, mut req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {

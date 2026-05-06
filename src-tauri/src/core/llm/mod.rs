@@ -1,4 +1,6 @@
 pub mod anthropic;
+pub mod cortecs;
+pub mod custom_openai;
 pub mod json_cleanup;
 pub mod local_gguf;
 pub mod openai;
