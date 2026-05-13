@@ -328,7 +328,6 @@ Da Gemma 4 E2B/E4B Tool-Calling-Output nicht immer sauber im JSON-Format liefert
 - Lokale LLM-Runtime (Rust, GGUF).
 - Kuratierter HF-Modell-Katalog + eigener Link.
 - Cloud-API-Hinterlegung optional (Anthropic, OpenAI, OpenRouter).
-- Eigene Skills via UI-Formular erstellbar (keine Markdown-Editor-Experience in v1).
 - Sandbox für eingebaute Skill-Scripts (nicht für User-Scripts).
 - Einstellungen-Modal (Modelle, APIs, Theme, About).
 - Auto-Updater via GitHub Releases.
@@ -345,6 +344,7 @@ Da Gemma 4 E2B/E4B Tool-Calling-Output nicht immer sauber im JSON-Format liefert
 - Auto-Komprimierung langer Chats.
 - Weitere Sprachen außer Deutsch.
 - User-Scripts in der Sandbox.
+- Eigene Skills via UI-Formular erstellbar (kommt in späterer Version).
 - Code-Signing (kommt in v1.1).
 - OCR auf gescannten PDFs.
 

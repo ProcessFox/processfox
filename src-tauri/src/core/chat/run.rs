@@ -856,6 +856,18 @@ fn attachments_block(agent: &Agent) -> Option<String> {
             "- The user has chosen `{display}` as the template for the `document-from-template` skill. When that skill is invoked, skip the discovery step and call `read_docx` on this path directly."
         ));
     }
+    if !agent.attachments.context_paths.is_empty() {
+        let names: Vec<String> = agent
+            .attachments
+            .context_paths
+            .iter()
+            .map(|p| format!("`{}`", pretty_attachment_path(agent, p)))
+            .collect();
+        lines.push(format!(
+            "- Context documents: {}. Before processing the user's first request in each conversation, read these files using the appropriate read tool (read_file, read_docx, read_pdf, or read_xlsx_range) so their content informs your answers.",
+            names.join(", ")
+        ));
+    }
     if lines.is_empty() {
         return None;
     }

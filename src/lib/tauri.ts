@@ -27,6 +27,8 @@ export const agentApi = {
   delete: (id: string) => invoke<void>("delete_agent", { id }),
   setAttachment: (agentId: string, kind: AttachmentKind, path: string | null) =>
     invoke<Agent>("set_agent_attachment", { agentId, kind, path }),
+  removeContextPath: (agentId: string, path: string) =>
+    invoke<Agent>("remove_agent_context_path", { agentId, path }),
   /** Watcher fires this when an agent's attachment was auto-cleared because
    *  the underlying file disappeared. Payload is the affected agent id. */
   subscribeAttachmentsChanged: (

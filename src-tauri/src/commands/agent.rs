@@ -79,3 +79,17 @@ pub async fn set_agent_attachment(
     repo.save(&agent)?;
     Ok(agent)
 }
+
+/// Remove a single context document from an agent's attachment list.
+#[tauri::command]
+pub async fn remove_agent_context_path(
+    agent_id: String,
+    path: PathBuf,
+    state: State<'_, AppState>,
+) -> Result<Agent, CommandError> {
+    let repo = state.agent_repo();
+    let mut agent = repo.get(&agent_id)?;
+    agent.remove_context_path(&path);
+    repo.save(&agent)?;
+    Ok(agent)
+}

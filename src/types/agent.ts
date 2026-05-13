@@ -8,9 +8,10 @@ export interface SkillSetting {
 
 export interface AgentAttachments {
   templatePath?: string | null;
+  contextPaths?: string[];
 }
 
-export type AttachmentKind = "template";
+export type AttachmentKind = "template" | "context";
 
 export interface DelegationProfile {
   enabled: boolean;

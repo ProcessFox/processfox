@@ -298,11 +298,11 @@ Zusätzlich: Symlink-Escape-Prävention durch `canonicalize`; Denylist für spez
 ## 12. Release-Prozess (Kurz)
 
 1. Alle Akzeptanzkriterien der aktuellen Phase (Roadmap unter `landing/src/content/docs/docs/entwickler/roadmap.md` bzw. `https://www.processfox.ai/docs/entwickler/roadmap/`) sind erfüllt.
-2. Version in `package.json` und `src-tauri/tauri.conf.json` bumpen.
-3. Tag setzen (`git tag v0.x.y`) und pushen.
-4. GitHub Actions `release.yml` baut Mac / Windows / Linux und pusht Artefakte an GitHub Release.
-5. Release-Notes verfassen (was ist neu, was ist bekannt fehlerhaft).
-6. Auto-Updater holt sich die neue Version bei den Nutzer:innen.
+2. Version in `package.json` und `src-tauri/tauri.conf.json` bumpen und auf `main` mergen.
+3. Auf GitHub → Actions → "Release" → **"Run workflow"** klicken (`workflow_dispatch`).
+4. GitHub Actions baut auf drei Plattformen (macOS ARM, Linux x64, Windows x64). Die `tauri-action` erstellt automatisch den Tag `v<VERSION>` und ein **Draft-Release** mit den Build-Artefakten.
+5. Draft-Release auf GitHub öffnen, Release-Notes ergänzen (was ist neu, was ist bekannt fehlerhaft), dann **"Publish release"** klicken.
+6. Auto-Updater holt sich die neue Version bei den Nutzer:innen (sobald Updater-Signing eingerichtet ist — siehe TODOs in `release.yml`).
 
 ---
 

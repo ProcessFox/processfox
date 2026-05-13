@@ -124,6 +124,7 @@ pub fn run() {
             commands::agent::update_agent,
             commands::agent::delete_agent,
             commands::agent::set_agent_attachment,
+            commands::agent::remove_agent_context_path,
             commands::file::list_agent_folder,
             commands::file::watch_agent_folder,
             commands::file::unwatch_agent_folder,

@@ -29,6 +29,8 @@ pub struct SkillSetting {
 pub struct AgentAttachments {
     #[serde(default)]
     pub template_path: Option<PathBuf>,
+    #[serde(default)]
+    pub context_paths: Vec<PathBuf>,
 }
 
 /// Stateless inference profile used by the agent's fan-out tools. Only
@@ -49,7 +51,7 @@ pub struct DelegationProfile {
 
 impl AgentAttachments {
     pub fn is_empty(&self) -> bool {
-        self.template_path.is_none()
+        self.template_path.is_none() && self.context_paths.is_empty()
     }
 }
 
@@ -59,6 +61,7 @@ impl AgentAttachments {
 #[serde(rename_all = "camelCase")]
 pub enum AttachmentKind {
     Template,
+    Context,
 }
 
 impl AttachmentKind {
@@ -67,6 +70,7 @@ impl AttachmentKind {
     pub fn required_skill(self) -> &'static str {
         match self {
             AttachmentKind::Template => "document-from-template",
+            AttachmentKind::Context => "context-document-read",
         }
     }
 }
@@ -188,6 +192,13 @@ impl Agent {
             {
                 self.attachments.template_path = None;
             }
+            if !self
+                .skills
+                .iter()
+                .any(|s| s == AttachmentKind::Context.required_skill())
+            {
+                self.attachments.context_paths.clear();
+            }
         }
         if let Some(v) = update.hitl_disabled {
             self.hitl_disabled = v;
@@ -203,13 +214,29 @@ impl Agent {
     pub fn set_attachment(&mut self, kind: AttachmentKind, path: Option<PathBuf>) {
         match kind {
             AttachmentKind::Template => self.attachments.template_path = path,
+            AttachmentKind::Context => {
+                if let Some(p) = path {
+                    if !self.attachments.context_paths.contains(&p) {
+                        self.attachments.context_paths.push(p);
+                    }
+                } else {
+                    self.attachments.context_paths.clear();
+                }
+            }
         }
+        self.updated_at = Utc::now().to_rfc3339();
+    }
+
+    /// Remove a single context document path. No-op if not present.
+    pub fn remove_context_path(&mut self, path: &Path) {
+        self.attachments.context_paths.retain(|p| p != path);
         self.updated_at = Utc::now().to_rfc3339();
     }
 
     pub fn attachment(&self, kind: AttachmentKind) -> Option<&PathBuf> {
         match kind {
             AttachmentKind::Template => self.attachments.template_path.as_ref(),
+            AttachmentKind::Context => self.attachments.context_paths.first(),
         }
     }
 }

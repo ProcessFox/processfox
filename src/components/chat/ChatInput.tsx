@@ -34,9 +34,11 @@ type Props = {
   footer?: { templateName: string | null; model: string | null };
 };
 
-const ATTACHMENT_CONFIG: Record<
-  AttachmentKind,
-  { label: string; dialogTitle: string; extensions: string[] }
+const ATTACHMENT_CONFIG: Partial<
+  Record<
+    AttachmentKind,
+    { label: string; dialogTitle: string; extensions: string[] }
+  >
 > = {
   template: {
     label: "Vorlage",
@@ -154,6 +156,8 @@ function attachmentPath(agent: Agent, kind: AttachmentKind): string | null {
   switch (kind) {
     case "template":
       return agent.attachments.templatePath ?? null;
+    case "context":
+      return null;
   }
 }
 
@@ -166,7 +170,9 @@ function AttachmentButton({
   agent: Agent;
   onAgentUpdated?: (agent: Agent) => void;
 }) {
-  const config = ATTACHMENT_CONFIG[kind];
+  const maybeConfig = ATTACHMENT_CONFIG[kind];
+  if (!maybeConfig) return null;
+  const config = maybeConfig;
   const current = attachmentPath(agent, kind);
   const hasAttachment = current !== null;
   const fileName = current ? current.split(/[/\\]/).pop() : null;
