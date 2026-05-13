@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { DocxViewer } from "./DocxViewer";
 import { ImageViewer } from "./ImageViewer";
@@ -19,6 +20,7 @@ type Props = {
 };
 
 export function PreviewPane({ agentId, fileName, filePath, onClose }: Props) {
+  const { t } = useTranslation();
   // Each sub-viewer can publish its own status (saving/saved/conflict). The
   // header lifts it up so we don't have to re-render a header per viewer.
   const [status, setStatus] = useState<PreviewStatus>({ kind: "idle" });
@@ -26,7 +28,7 @@ export function PreviewPane({ agentId, fileName, filePath, onClose }: Props) {
   if (!fileName || !filePath || !agentId) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-xs text-muted-foreground">
-        Wähle links eine Datei, um ihre Vorschau zu öffnen.
+        {t("viewer.selectFile")}
       </div>
     );
   }

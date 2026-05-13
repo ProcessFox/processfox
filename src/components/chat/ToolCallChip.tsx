@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle, Check, ChevronRight, Loader2 } from "lucide-react";
 
 import type { DelegationProgress } from "@/hooks/useAgentChat";
@@ -107,17 +108,16 @@ function DelegationProgressStrip({
 }: {
   progress: DelegationProgress;
 }) {
+  const { t } = useTranslation();
   const done = progress.succeeded + progress.failed;
   const pct = progress.total > 0 ? Math.min(100, (done / progress.total) * 100) : 0;
   const currentLine = progress.lastItem
     ? progress.finished
-      ? `Fertig: ${progress.succeeded} von ${progress.total} geschrieben${
-          progress.failed > 0 ? ` · ${progress.failed} Fehler` : ""
-        }`
-      : `${progress.lastItem.label} · ${done} von ${progress.total}`
-    : `Starte … ${progress.total} ${
-        progress.total === 1 ? "Eintrag" : "Einträge"
-      }`;
+      ? progress.failed > 0
+        ? t("delegation.finishedWithErrors", { succeeded: progress.succeeded, total: progress.total, failed: progress.failed })
+        : t("delegation.finished", { succeeded: progress.succeeded, total: progress.total })
+      : t("delegation.progress", { label: progress.lastItem.label, done, total: progress.total })
+    : t("delegation.starting", { count: progress.total });
 
   return (
     <div className="mt-0.5 flex flex-col gap-1">
@@ -138,7 +138,7 @@ function DelegationProgressStrip({
       </div>
       {progress.lastError && (
         <div className="truncate text-[11px] opacity-75" title={progress.lastError}>
-          Letzter Fehler: {progress.lastError}
+          {t("delegation.lastError", { error: progress.lastError })}
         </div>
       )}
     </div>

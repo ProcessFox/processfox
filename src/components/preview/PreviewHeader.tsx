@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { iconForFile } from "@/lib/fileIcons";
@@ -17,6 +18,7 @@ type Props = {
 };
 
 export function PreviewHeader({ fileName, status, onClose }: Props) {
+  const { t } = useTranslation();
   const Icon = iconForFile(fileName);
   return (
     <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-surface px-3 py-2">
@@ -31,7 +33,7 @@ export function PreviewHeader({ fileName, status, onClose }: Props) {
           size="icon"
           className="h-7 w-7"
           onClick={onClose}
-          title="Vorschau schließen"
+          title={t("preview.closePreview")}
         >
           <X className="h-3.5 w-3.5" />
         </Button>
@@ -41,23 +43,24 @@ export function PreviewHeader({ fileName, status, onClose }: Props) {
 }
 
 function StatusLabel({ status }: { status: PreviewStatus }) {
+  const { t } = useTranslation();
   if (status.kind === "idle") return null;
   if (status.kind === "saving") {
-    return <span className="text-xs text-muted-foreground">Speichern …</span>;
+    return <span className="text-xs text-muted-foreground">{t("preview.saving")}</span>;
   }
   if (status.kind === "saved") {
-    return <span className="text-xs text-muted-foreground">Gespeichert</span>;
+    return <span className="text-xs text-muted-foreground">{t("preview.saved")}</span>;
   }
   if (status.kind === "conflict") {
     return (
       <span className="text-xs text-amber-600 dark:text-amber-400">
-        Externe Änderung
+        {t("preview.conflict")}
       </span>
     );
   }
   return (
     <span className="text-xs text-destructive" title={status.message}>
-      Fehler
+      {t("preview.error")}
     </span>
   );
 }

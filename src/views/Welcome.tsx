@@ -1,4 +1,5 @@
 import { Check, Cpu, FolderOpen, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -22,9 +23,6 @@ type Props = {
   onFinish: () => void;
 };
 
-/** Three-step first-run flow: intro → model setup → first agent → done.
- *  Each step shows a checkmark once its precondition is satisfied; the
- *  user can revisit any step until they hit "Fertig". */
 export function WelcomeDialog({
   open,
   settings,
@@ -35,6 +33,7 @@ export function WelcomeDialog({
   onCreateAgent,
   onFinish,
 }: Props) {
+  const { t } = useTranslation();
   const modelReady = isModelReady(settings, installedModels, hasApiKey);
   const agentReady = agents.length > 0;
   const allReady = modelReady && agentReady;
@@ -49,28 +48,26 @@ export function WelcomeDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-4 w-4" />
-            Willkommen bei ProcessFox
+            {t("welcome.title")}
           </DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 py-2">
           <p className="text-sm text-muted-foreground">
-            ProcessFox ist eine Desktop-App für KI-Agenten, die mit deinen
-            eigenen Dateien arbeiten — lokal auf deinem Rechner. Drei kurze
-            Schritte und du kannst loslegen:
+            {t("welcome.intro")}
           </p>
 
           <Step
             number={1}
             done={modelReady}
             icon={Cpu}
-            title="Modell einrichten"
+            title={t("welcome.step1Title")}
             description={
               modelReady
-                ? "Modell ist konfiguriert."
-                : "Lade ein lokales Modell herunter (empfohlen) oder hinterlege einen Cloud-API-Key."
+                ? t("welcome.step1Done")
+                : t("welcome.step1Todo")
             }
-            actionLabel={modelReady ? "Ändern" : "Einstellungen öffnen"}
+            actionLabel={modelReady ? t("welcome.step1ActionDone") : t("welcome.step1ActionTodo")}
             onAction={onOpenSettings}
           />
 
@@ -78,13 +75,13 @@ export function WelcomeDialog({
             number={2}
             done={agentReady}
             icon={FolderOpen}
-            title="Ersten Agenten anlegen"
+            title={t("welcome.step2Title")}
             description={
               agentReady
-                ? `${agents.length} Agent${agents.length === 1 ? "" : "en"} angelegt.`
-                : "Gib deinem Agenten einen Namen und einen Ordner, in dem er arbeiten darf."
+                ? t("welcome.step2Done", { count: agents.length })
+                : t("welcome.step2Todo")
             }
-            actionLabel={agentReady ? "Weiteren anlegen" : "Agent anlegen"}
+            actionLabel={agentReady ? t("welcome.step2ActionDone") : t("welcome.step2ActionTodo")}
             onAction={onCreateAgent}
             disabled={!modelReady}
           />
@@ -92,7 +89,7 @@ export function WelcomeDialog({
 
         <div className="flex justify-end pt-2">
           <Button onClick={onFinish} disabled={!allReady}>
-            Fertig — los geht's
+            {t("welcome.finish")}
           </Button>
         </div>
       </DialogContent>

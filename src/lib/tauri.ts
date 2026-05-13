@@ -126,6 +126,8 @@ export const settingsApi = {
   setFirstRunDone: () => invoke<Settings>("set_first_run_done"),
   setCustomOpenAiBaseUrl: (url: string | null) =>
     invoke<Settings>("set_custom_openai_base_url", { url }),
+  setLocale: (locale: string | null) =>
+    invoke<Settings>("set_locale", { locale }),
   availableProviders: () => invoke<string[]>("available_providers"),
 };
 

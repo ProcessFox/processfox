@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { diffLines } from "diff";
 
 import { Button } from "@/components/ui/button";
@@ -25,8 +26,9 @@ type Props = {
 };
 
 export function HitlCard({ hitl, busy, onApprove, onReject }: Props) {
+  const { t } = useTranslation();
   const { preview } = hitl;
-  const heading = headingFor(preview);
+  const heading = headingFor(preview, t);
   return (
     <div className="flex flex-col gap-2.5 rounded-md border border-amber-500/40 bg-amber-500/15 p-3 text-xs text-amber-800 dark:text-amber-200">
       <div className="flex items-center gap-2">
@@ -53,7 +55,7 @@ export function HitlCard({ hitl, busy, onApprove, onReject }: Props) {
           className="gap-1.5"
         >
           <X className="h-3.5 w-3.5" />
-          Ablehnen
+          {t("common.reject")}
         </Button>
         <Button size="sm" onClick={onApprove} disabled={busy} className="gap-1.5">
           {busy ? (
@@ -61,7 +63,7 @@ export function HitlCard({ hitl, busy, onApprove, onReject }: Props) {
           ) : (
             <Check className="h-3.5 w-3.5" />
           )}
-          Freigeben
+          {t("common.approve")}
         </Button>
       </div>
     </div>
@@ -87,71 +89,76 @@ function PathRow({ label, path }: { label: string; path: string }) {
 }
 
 function PathSummary({ preview }: { preview: HitlPreview }) {
+  const { t } = useTranslation();
   if (preview.kind === "writeDocxFromTemplate") {
     return (
       <div className="flex flex-col gap-1">
-        <PathRow label="Vorlage" path={preview.templatePath} />
-        <PathRow label="Ausgabe" path={preview.outputPath} />
+        <PathRow label={t("hitl.template")} path={preview.templatePath} />
+        <PathRow label={t("hitl.output")} path={preview.outputPath} />
       </div>
     );
   }
-  return <PathRow label="Datei" path={preview.path} />;
+  return <PathRow label={t("hitl.file")} path={preview.path} />;
 }
 
-function headingFor(preview: HitlPreview): {
+function headingFor(
+  preview: HitlPreview,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): {
   Icon: typeof FilePlus;
   label: string;
 } {
   switch (preview.kind) {
     case "appendToFile":
       return preview.createsFile
-        ? { Icon: FilePlus, label: "Neue Datei erstellen" }
-        : { Icon: FilePen, label: "Inhalt anhängen" };
+        ? { Icon: FilePlus, label: t("hitl.newFile") }
+        : { Icon: FilePen, label: t("hitl.appendContent") };
     case "writeDocx":
       return preview.createsFile
-        ? { Icon: FilePlus, label: "Word-Dokument erstellen" }
-        : { Icon: FileText, label: "Word-Dokument überschreiben" };
+        ? { Icon: FilePlus, label: t("hitl.createDocx") }
+        : { Icon: FileText, label: t("hitl.overwriteDocx") };
     case "appendToDocx":
       return preview.createsFile
-        ? { Icon: FilePlus, label: "Word-Dokument erstellen" }
-        : { Icon: FilePen, label: "Word-Dokument erweitern" };
+        ? { Icon: FilePlus, label: t("hitl.createDocx") }
+        : { Icon: FilePen, label: t("hitl.extendDocx") };
     case "rewriteFile":
       return preview.createsFile
-        ? { Icon: FilePlus, label: "Neue Datei schreiben" }
-        : { Icon: FileEdit, label: "Datei komplett ersetzen" };
+        ? { Icon: FilePlus, label: t("hitl.writeFile") }
+        : { Icon: FileEdit, label: t("hitl.replaceFile") };
     case "updateCells": {
       const n = preview.changes.length;
       return {
         Icon: SheetIcon,
-        label: `${n} ${n === 1 ? "Zelle" : "Zellen"} aktualisieren`,
+        label: t("hitl.updateCells", { count: n }),
       };
     }
     case "writeXlsx":
       return preview.createsFile
-        ? { Icon: FilePlus, label: "Excel-Tabelle erstellen" }
-        : { Icon: SheetIcon, label: "Excel-Tabelle überschreiben" };
+        ? { Icon: FilePlus, label: t("hitl.createXlsx") }
+        : { Icon: SheetIcon, label: t("hitl.overwriteXlsx") };
     case "writeDocxFromTemplate":
       return preview.createsFile
-        ? { Icon: FileStack, label: "Word-Dokument aus Vorlage erstellen" }
-        : { Icon: FileStack, label: "Word-Dokument aus Vorlage überschreiben" };
+        ? { Icon: FileStack, label: t("hitl.createFromTemplate") }
+        : { Icon: FileStack, label: t("hitl.overwriteFromTemplate") };
     case "delegateIntoXlsxColumn": {
       const n = preview.rowCount;
       return {
         Icon: Workflow,
-        label: `${n} ${n === 1 ? "Zeile" : "Zeilen"} per Worker bearbeiten`,
+        label: t("hitl.delegateRows", { count: n }),
       };
     }
   }
 }
 
 function PreviewBody({ preview }: { preview: HitlPreview }) {
+  const { t } = useTranslation();
   switch (preview.kind) {
     case "appendToFile":
       return (
         <>
           {preview.existingTail && (
             <Section
-              label="Bisheriger Inhalt (Ende)"
+              label={t("hitl.existingContentEnd")}
               subdued
               defaultOpen={false}
             >
@@ -159,7 +166,7 @@ function PreviewBody({ preview }: { preview: HitlPreview }) {
             </Section>
           )}
           <Section
-            label={preview.existingTail ? "Anzuhängender Inhalt" : "Inhalt"}
+            label={preview.existingTail ? t("hitl.appendingContent") : t("hitl.content")}
           >
             {preview.content}
           </Section>
@@ -169,17 +176,13 @@ function PreviewBody({ preview }: { preview: HitlPreview }) {
       return (
         <>
           <Section
-            label={`Inhalt — ${preview.blockCount} ${
-              preview.blockCount === 1 ? "Block" : "Blöcke"
-            }`}
+            label={t("hitl.contentBlocks", { count: preview.blockCount })}
           >
             {preview.previewText}
           </Section>
           {!preview.createsFile && (
             <p className="text-xs opacity-80">
-              ⚠ Diese Datei existiert bereits und wird komplett überschrieben.
-              Vorhandene Formatierung geht verloren — für Erweiterung benutze
-              den Skill „Dokument fortschreiben".
+              {t("hitl.overwriteWarningDocx")}
             </p>
           )}
         </>
@@ -189,7 +192,7 @@ function PreviewBody({ preview }: { preview: HitlPreview }) {
         <>
           {preview.existingTail && (
             <Section
-              label="Bisheriger Inhalt (Ende, als Text)"
+              label={t("hitl.existingContentEndText")}
               subdued
               defaultOpen={false}
             >
@@ -197,9 +200,7 @@ function PreviewBody({ preview }: { preview: HitlPreview }) {
             </Section>
           )}
           <Section
-            label={`Anzuhängender Inhalt — ${preview.blockCount} ${
-              preview.blockCount === 1 ? "Block" : "Blöcke"
-            }`}
+            label={t("hitl.appendingContentBlocks", { count: preview.blockCount })}
           >
             {preview.previewText}
           </Section>
@@ -259,16 +260,16 @@ function DelegateXlsxSection({
   workerLabel: string;
   samplePrompts: { rowLabel: string; renderedPrompt: string }[];
 }) {
+  const { t } = useTranslation();
   return (
     <>
       <div className="flex flex-col gap-1">
         <SectionLabel>
-          Sheet „{sheet}" — Spalte „{targetColumn}"
-          {targetCreatesColumn ? " (wird neu angelegt)" : " (wird überschrieben)"}
+          {t("hitl.delegateSheetColumn", { sheet, column: targetColumn })}{" "}
+          {targetCreatesColumn ? t("hitl.delegateCreatesColumn") : t("hitl.delegateOverwritesColumn")}
         </SectionLabel>
         <div className="text-xs opacity-90">
-          {rowCount} {rowCount === 1 ? "Zeile" : "Zeilen"} werden seriell vom
-          Worker bearbeitet.
+          {t("hitl.delegateRowsProcessed", { count: rowCount })}
         </div>
         <div className="text-xs opacity-80">
           Worker:{" "}
@@ -277,7 +278,7 @@ function DelegateXlsxSection({
       </div>
       {samplePrompts.length > 0 && (
         <Section
-          label={`Beispiel-Prompts (${samplePrompts.length} von ${rowCount})`}
+          label={t("hitl.delegateSamplePrompts", { shown: samplePrompts.length, total: rowCount })}
           defaultOpen
         >
           {samplePrompts
@@ -287,8 +288,7 @@ function DelegateXlsxSection({
       )}
       {!targetCreatesColumn && (
         <p className="text-xs opacity-80">
-          ⚠ Die Spalte „{targetColumn}" enthält ggf. bereits Werte. Diese werden
-          beim Lauf überschrieben.
+          {t("hitl.delegateColumnWarning", { column: targetColumn })}
         </p>
       )}
     </>
@@ -332,6 +332,7 @@ function WriteXlsxSection({
   rows: string[][];
   createsFile: boolean;
 }) {
+  const { t } = useTranslation();
   const MAX_ROWS = 10;
   const visible = rows.slice(0, MAX_ROWS);
   const hidden = rows.length - visible.length;
@@ -340,9 +341,7 @@ function WriteXlsxSection({
     <>
       <div className="flex flex-col gap-1">
         <SectionLabel>
-          Sheet „{sheet}" — {rows.length}{" "}
-          {rows.length === 1 ? "Zeile" : "Zeilen"} × {colCount}{" "}
-          {colCount === 1 ? "Spalte" : "Spalten"}
+          Sheet „{sheet}" — {t("hitl.sheetRowsCols", { count: rows.length })} × {t("hitl.columns", { count: colCount })}
         </SectionLabel>
         <div className="overflow-auto rounded-sm border border-amber-500/30 bg-background/60 font-mono text-xs">
           <table className="w-full">
@@ -366,15 +365,13 @@ function WriteXlsxSection({
         </div>
         {hidden > 0 && (
           <div className="text-xs opacity-70">
-            … +{hidden} weitere {hidden === 1 ? "Zeile" : "Zeilen"} (nicht angezeigt)
+            {t("hitl.hiddenRows", { count: hidden })}
           </div>
         )}
       </div>
       {!createsFile && (
         <p className="text-xs opacity-80">
-          ⚠ Diese Datei existiert bereits und wird komplett ersetzt — vorhandene
-          Sheets, Formatierung und Formeln gehen verloren. Für gezielte Änderungen
-          benutze den Skill „Tabelle ändern".
+          {t("hitl.overwriteWarningXlsx")}
         </p>
       )}
     </>
@@ -390,21 +387,21 @@ function TemplateSection({
   templatePlaceholders: string[];
   createsFile: boolean;
 }) {
+  const { t } = useTranslation();
   const providedKeys = new Set(replacements.map((r) => r.key));
   const missing = templatePlaceholders.filter((k) => !providedKeys.has(k));
   return (
     <>
       <div className="flex flex-col gap-1">
         <SectionLabel>
-          Platzhalter füllen — {replacements.length}{" "}
-          {replacements.length === 1 ? "Eintrag" : "Einträge"}
+          {t("hitl.fillPlaceholders", { count: replacements.length })}
         </SectionLabel>
         <div className="overflow-auto rounded-sm border border-amber-500/30 bg-background/60 text-xs">
           <table className="w-full">
             <thead>
               <tr className="border-b border-amber-500/30 text-left opacity-70">
-                <th className="px-2 py-1 font-medium">Schlüssel</th>
-                <th className="px-2 py-1 font-medium">Wert</th>
+                <th className="px-2 py-1 font-medium">{t("hitl.key")}</th>
+                <th className="px-2 py-1 font-medium">{t("hitl.value")}</th>
               </tr>
             </thead>
             <tbody>
@@ -415,7 +412,7 @@ function TemplateSection({
                 >
                   <td className="px-2 py-1 align-top font-mono">{`{{${r.key}}}`}</td>
                   <td className="px-2 py-1 align-top whitespace-pre-wrap">
-                    {r.value || <span className="opacity-50">(leer)</span>}
+                    {r.value || <span className="opacity-50">{t("hitl.empty")}</span>}
                   </td>
                 </tr>
               ))}
@@ -425,15 +422,12 @@ function TemplateSection({
       </div>
       {missing.length > 0 && (
         <p className="text-xs opacity-80">
-          ⚠ Die Vorlage enthält noch ungefüllte Platzhalter:{" "}
-          {missing.map((k) => `{{${k}}}`).join(", ")}. Wenn diese im
-          Ergebnis-Dokument als Klartext erscheinen sollen, ist das ok — sonst
-          ablehnen und die Werte ergänzen.
+          {t("hitl.unfilledPlaceholders", { keys: missing.map((k) => `{{${k}}}`).join(", ") })}
         </p>
       )}
       {!createsFile && (
         <p className="text-xs opacity-80">
-          ⚠ Die Ausgabedatei existiert bereits und wird ersetzt.
+          {t("hitl.outputFileExists")}
         </p>
       )}
     </>
@@ -447,16 +441,17 @@ function CellChangesSection({
   sheet: string;
   changes: { cell: string; before: string; after: string }[];
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col gap-1">
-      <SectionLabel>Sheet „{sheet}" — Änderungen</SectionLabel>
+      <SectionLabel>{t("hitl.sheetChanges", { sheet })}</SectionLabel>
       <div className="overflow-auto rounded-sm border border-amber-500/30 bg-background/60 text-xs">
         <table className="w-full">
           <thead>
             <tr className="border-b border-amber-500/30 text-left opacity-70">
-              <th className="px-2 py-1 font-medium">Zelle</th>
-              <th className="px-2 py-1 font-medium">Vorher</th>
-              <th className="px-2 py-1 font-medium">Nachher</th>
+              <th className="px-2 py-1 font-medium">{t("hitl.cell")}</th>
+              <th className="px-2 py-1 font-medium">{t("hitl.before")}</th>
+              <th className="px-2 py-1 font-medium">{t("hitl.after")}</th>
             </tr>
           </thead>
           <tbody>
@@ -467,10 +462,10 @@ function CellChangesSection({
               >
                 <td className="px-2 py-1 font-mono font-medium">{c.cell}</td>
                 <td className="px-2 py-1 align-top font-mono text-rose-700 line-through opacity-80 dark:text-rose-300">
-                  {c.before || <span className="opacity-50">(leer)</span>}
+                  {c.before || <span className="opacity-50">{t("hitl.empty")}</span>}
                 </td>
                 <td className="px-2 py-1 align-top font-mono text-emerald-700 dark:text-emerald-300">
-                  {c.after || <span className="opacity-50">(leer)</span>}
+                  {c.after || <span className="opacity-50">{t("hitl.empty")}</span>}
                 </td>
               </tr>
             ))}
@@ -482,16 +477,17 @@ function CellChangesSection({
 }
 
 function DiffSection({ before, after }: { before: string; after: string }) {
+  const { t } = useTranslation();
   const parts = diffLines(before, after);
   return (
     <details open className="group">
       <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium opacity-90 hover:opacity-100 [&::-webkit-details-marker]:hidden">
         <ChevronRight className="h-3 w-3 shrink-0 transition-transform group-open:rotate-90" />
-        Änderungen
+        {t("hitl.changes")}
       </summary>
       <div className="mt-1 max-h-64 overflow-auto rounded-sm border border-amber-500/30 bg-background/60 font-mono text-xs">
         {parts.length === 0 ? (
-          <div className="px-2 py-1 italic opacity-70">Keine Änderungen.</div>
+          <div className="px-2 py-1 italic opacity-70">{t("hitl.noChanges")}</div>
         ) : (
           parts.map((p, i) => {
             const cls = p.added

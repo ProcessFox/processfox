@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { previewApi, type XlsxPreview } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ type State =
  *  refetch the new sheet. The backend already trims to 1000×50 cells, so
  *  the table stays snappy without virtualization. */
 export function XlsxViewer({ agentId, filePath }: Props) {
+  const { t } = useTranslation();
   const [state, setState] = useState<State>({ kind: "loading" });
   // Active sheet name. `null` means "use the workbook's first sheet" — we
   // don't know the names until the first request returns.
@@ -42,7 +44,7 @@ export function XlsxViewer({ agentId, filePath }: Props) {
       .catch((e: unknown) => {
         if (cancelled) return;
         const message =
-          (e as { message?: string })?.message ?? String(e ?? "Unbekannter Fehler");
+          (e as { message?: string })?.message ?? String(e ?? t("common.unknownError"));
         setState({ kind: "error", message });
       });
     return () => {
@@ -53,7 +55,7 @@ export function XlsxViewer({ agentId, filePath }: Props) {
   if (state.kind === "loading") {
     return (
       <div className="flex flex-1 items-center justify-center p-6 text-xs text-muted-foreground">
-        Lädt …
+        {t("common.loading")}
       </div>
     );
   }
@@ -79,9 +81,12 @@ export function XlsxViewer({ agentId, filePath }: Props) {
       )}
       {data.truncated && (
         <div className="shrink-0 border-b border-border bg-amber-50 px-3 py-1.5 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-100">
-          Vorschau gekürzt — zeigt erste {Math.min(data.rows.length, 1000)} ×{" "}
-          {Math.min(colCount, 50)} Zellen von {data.totalRows} ×{" "}
-          {data.totalCols}.
+          {t("xlsx.truncated", {
+            rows: Math.min(data.rows.length, 1000),
+            cols: Math.min(colCount, 50),
+            totalRows: data.totalRows,
+            totalCols: data.totalCols,
+          })}
         </div>
       )}
       <div className="min-h-0 flex-1 overflow-auto">

@@ -24,6 +24,9 @@ pub struct Settings {
     /// (e.g. `https://api.cortecs.ai/v1`, `http://localhost:11434/v1`).
     #[serde(default)]
     pub custom_openai_base_url: Option<String>,
+    /// UI locale override. `None` means auto-detect from the OS.
+    #[serde(default)]
+    pub locale: Option<String>,
 }
 
 #[derive(Debug, Clone)]

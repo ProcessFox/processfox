@@ -59,6 +59,17 @@ pub async fn set_custom_openai_base_url(
 }
 
 #[tauri::command]
+pub async fn set_locale(
+    locale: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<Settings, CommandError> {
+    state
+        .settings()
+        .update(|s| s.locale = locale)
+        .map_err(Into::into)
+}
+
+#[tauri::command]
 pub async fn available_providers(state: State<'_, AppState>) -> Result<Vec<String>, CommandError> {
     Ok(state
         .providers

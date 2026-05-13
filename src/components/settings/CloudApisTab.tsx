@@ -8,6 +8,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -104,6 +105,7 @@ function ProviderCard({
   settings: Settings | null;
   onSettingsChange: (s: Settings) => void;
 }) {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<KeyStatus>({ state: "unknown" });
   const [keyInput, setKeyInput] = useState("");
   const [showKey, setShowKey] = useState(false);
@@ -121,7 +123,7 @@ function ProviderCard({
       } else {
         setStatus({
           state: "invalid",
-          message: result.error ?? "Unbekannter Fehler",
+          message: result.error ?? t("cloudApi.unknownError"),
         });
       }
     } catch (e) {
@@ -130,9 +132,8 @@ function ProviderCard({
         message: String((e as { message?: string })?.message ?? e),
       });
     }
-  }, [meta.id]);
+  }, [meta.id, t]);
 
-  // Initial status check on mount / provider change.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -143,19 +144,15 @@ function ProviderCard({
           setStatus({ state: "none" });
         } else {
           setStatus({ state: "stored" });
-          // Kick off a background validation without blocking the UI.
           const result = await secretsApi.validateApiKey(meta.id);
           if (cancelled) return;
           if (result.ok) {
             setStatus({ state: "valid" });
-            // Auto-heal: if the key is valid but the app doesn't yet have
-            // a default provider/model wired up (e.g. the key was saved
-            // in a previous session before this logic existed), fix it now.
             await ensureDefaultsOnFirstSetup();
           } else {
             setStatus({
               state: "invalid",
-              message: result.error ?? "Unbekannter Fehler",
+              message: result.error ?? t("cloudApi.unknownError"),
             });
           }
         }
@@ -175,14 +172,10 @@ function ProviderCard({
   }, [meta.id]);
 
   async function ensureDefaultsOnFirstSetup() {
-    // If the user hasn't picked a default provider yet, make this one the
-    // default so the chat is immediately usable.
     if (!settings?.defaultProvider) {
       const updated = await settingsApi.setDefaultProvider(meta.id);
       onSettingsChange(updated);
     }
-    // If no default model is set for this provider yet, pick the first
-    // suggestion as a sensible starter.
     if (!settings?.defaultModels?.[meta.id]) {
       const updated = await settingsApi.setDefaultModel(
         meta.id,
@@ -190,7 +183,6 @@ function ProviderCard({
       );
       onSettingsChange(updated);
     }
-    // A validated cloud provider also satisfies the first-run requirement.
     if (settings && !settings.firstRunDone) {
       const next = await settingsApi.setFirstRunDone();
       onSettingsChange(next);
@@ -231,8 +223,6 @@ function ProviderCard({
     try {
       const next = await settingsApi.setDefaultModel(meta.id, model || null);
       onSettingsChange(next);
-      // Whenever the user actively picks a model for a provider, make that
-      // provider the default if none is set yet.
       if (!settings?.defaultProvider) {
         const withProvider = await settingsApi.setDefaultProvider(meta.id);
         onSettingsChange(withProvider);
@@ -261,7 +251,7 @@ function ProviderCard({
 
       <div className="mt-3 flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">API-Key</Label>
+          <Label className="text-xs">{t("cloudApi.apiKey")}</Label>
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Input
@@ -271,7 +261,7 @@ function ProviderCard({
                 placeholder={
                   status.state === "none"
                     ? meta.placeholder
-                    : "Bestehenden Key ersetzen …"
+                    : t("cloudApi.replaceExisting")
                 }
                 className="pr-9"
               />
@@ -279,7 +269,7 @@ function ProviderCard({
                 type="button"
                 onClick={() => setShowKey((v) => !v)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                title={showKey ? "Verbergen" : "Anzeigen"}
+                title={showKey ? t("cloudApi.hideKey") : t("cloudApi.showKey")}
               >
                 {showKey ? (
                   <EyeOff className="h-3.5 w-3.5" />
@@ -293,7 +283,7 @@ function ProviderCard({
               onClick={saveKey}
               disabled={busy || keyInput.trim().length === 0}
             >
-              Speichern & prüfen
+              {t("common.saveAndCheck")}
             </Button>
             {status.state !== "none" && status.state !== "unknown" && (
               <Button
@@ -301,7 +291,7 @@ function ProviderCard({
                 variant="ghost"
                 onClick={clearKey}
                 disabled={busy}
-                title="Key entfernen"
+                title={t("cloudApi.removeKey")}
                 className="h-8 w-8"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -314,12 +304,12 @@ function ProviderCard({
             rel="noreferrer"
             className="text-xs text-muted-foreground hover:text-foreground"
           >
-            Wo finde ich meinen API-Key?
+            {t("cloudApi.whereIsKey")}
           </a>
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">Default-Modell</Label>
+          <Label className="text-xs">{t("cloudApi.defaultModel")}</Label>
           <div className="flex flex-wrap gap-1.5">
             {meta.suggestedModels.map((m) => (
               <button
@@ -339,7 +329,7 @@ function ProviderCard({
           <Input
             value={defaultModel}
             onChange={(e) => updateDefaultModel(e.target.value)}
-            placeholder="Oder custom Modell-ID eingeben …"
+            placeholder={t("cloudApi.customModelPlaceholder")}
             className="text-xs"
           />
         </div>
@@ -368,6 +358,7 @@ function CustomProviderCard({
   settings: Settings | null;
   onSettingsChange: (s: Settings) => void;
 }) {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<KeyStatus>({ state: "unknown" });
   const [keyInput, setKeyInput] = useState("");
   const [showKey, setShowKey] = useState(false);
@@ -377,7 +368,6 @@ function CustomProviderCard({
 
   const defaultModel = settings?.defaultModels?.["custom"] ?? "";
 
-  // Sync base URL field when settings load
   useEffect(() => {
     setBaseUrl(settings?.customOpenAiBaseUrl ?? "");
   }, [settings?.customOpenAiBaseUrl]);
@@ -389,7 +379,7 @@ function CustomProviderCard({
       if (result.ok) {
         setStatus({ state: "valid" });
       } else {
-        setStatus({ state: "invalid", message: result.error ?? "Unbekannter Fehler" });
+        setStatus({ state: "invalid", message: result.error ?? t("cloudApi.unknownError") });
       }
     } catch (e) {
       setStatus({
@@ -397,7 +387,7 @@ function CustomProviderCard({
         message: String((e as { message?: string })?.message ?? e),
       });
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -414,7 +404,7 @@ function CustomProviderCard({
           if (result.ok) {
             setStatus({ state: "valid" });
           } else {
-            setStatus({ state: "invalid", message: result.error ?? "Unbekannter Fehler" });
+            setStatus({ state: "invalid", message: result.error ?? t("cloudApi.unknownError") });
           }
         }
       } catch (e) {
@@ -427,6 +417,7 @@ function CustomProviderCard({
       }
     })();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function saveBaseUrl() {
@@ -501,7 +492,7 @@ function CustomProviderCard({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
-          <div className="text-sm font-medium">OpenAI-kompatibel</div>
+          <div className="text-sm font-medium">{t("cloudApi.customTitle")}</div>
           {isActiveDefault && (
             <span className="rounded-sm border border-border bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
               Default
@@ -513,24 +504,24 @@ function CustomProviderCard({
 
       <div className="mt-3 flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">Basis-URL</Label>
+          <Label className="text-xs">{t("cloudApi.baseUrl")}</Label>
           <div className="flex items-center gap-2">
             <Input
               type="url"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               onBlur={saveBaseUrl}
-              placeholder="https://api.beispiel.de/v1"
+              placeholder={t("cloudApi.baseUrlPlaceholder")}
               className="flex-1 text-xs"
             />
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Jeder OpenAI-kompatible Endpunkt — z.&nbsp;B. Cortecs, Groq, Together AI, Ollama, vLLM.
+            {t("cloudApi.baseUrlHint")}
           </p>
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">API-Key</Label>
+          <Label className="text-xs">{t("cloudApi.apiKey")}</Label>
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Input
@@ -538,7 +529,7 @@ function CustomProviderCard({
                 value={keyInput}
                 onChange={(e) => setKeyInput(e.target.value)}
                 placeholder={
-                  status.state === "none" ? "sk-…" : "Bestehenden Key ersetzen …"
+                  status.state === "none" ? "sk-…" : t("cloudApi.replaceExisting")
                 }
                 className="pr-9"
               />
@@ -546,7 +537,7 @@ function CustomProviderCard({
                 type="button"
                 onClick={() => setShowKey((v) => !v)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                title={showKey ? "Verbergen" : "Anzeigen"}
+                title={showKey ? t("cloudApi.hideKey") : t("cloudApi.showKey")}
               >
                 {showKey ? (
                   <EyeOff className="h-3.5 w-3.5" />
@@ -560,7 +551,7 @@ function CustomProviderCard({
               onClick={saveKey}
               disabled={busy || keyInput.trim().length === 0}
             >
-              Speichern & prüfen
+              {t("common.saveAndCheck")}
             </Button>
             {status.state !== "none" && status.state !== "unknown" && (
               <Button
@@ -568,7 +559,7 @@ function CustomProviderCard({
                 variant="ghost"
                 onClick={clearKey}
                 disabled={busy}
-                title="Key entfernen"
+                title={t("cloudApi.removeKey")}
                 className="h-8 w-8"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -576,16 +567,16 @@ function CustomProviderCard({
             )}
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Für Server ohne Authentifizierung (z.&nbsp;B. lokales Ollama) einen beliebigen Wert eintragen.
+            {t("cloudApi.noAuthHint")}
           </p>
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">Default-Modell</Label>
+          <Label className="text-xs">{t("cloudApi.defaultModel")}</Label>
           <Input
             value={defaultModel}
             onChange={(e) => updateDefaultModel(e.target.value)}
-            placeholder="Modell-ID eingeben, z. B. llama3 oder mistral …"
+            placeholder={t("cloudApi.customModelIdPlaceholder")}
             className="text-xs"
           />
         </div>
@@ -614,23 +605,18 @@ function StatusBadge({
   status: KeyStatus;
   onRevalidate: () => void;
 }) {
+  const { t } = useTranslation();
   switch (status.state) {
     case "unknown":
       return <span className="text-xs text-muted-foreground">…</span>;
     case "none":
-      return <span className="text-xs text-muted-foreground">Kein Key</span>;
+      return <span className="text-xs text-muted-foreground">{t("cloudApi.statusNoKey")}</span>;
     case "stored":
-      return (
-        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Prüfe …
-        </span>
-      );
     case "validating":
       return (
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Prüfe …
+          {t("cloudApi.statusValidating")}
         </span>
       );
     case "valid":
@@ -638,10 +624,10 @@ function StatusBadge({
         <button
           onClick={onRevalidate}
           className="flex items-center gap-1 text-xs text-emerald-500 hover:underline"
-          title="Erneut prüfen"
+          title={t("cloudApi.revalidate")}
         >
           <Check className="h-3.5 w-3.5" />
-          Validiert
+          {t("cloudApi.statusValid")}
         </button>
       );
     case "invalid":
@@ -649,10 +635,10 @@ function StatusBadge({
         <button
           onClick={onRevalidate}
           className="flex items-center gap-1 text-xs text-destructive hover:underline"
-          title="Erneut prüfen"
+          title={t("cloudApi.revalidate")}
         >
           <AlertTriangle className="h-3.5 w-3.5" />
-          Ungültig
+          {t("cloudApi.statusInvalid")}
         </button>
       );
   }

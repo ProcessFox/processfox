@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import { ArrowUp, FileStack } from "lucide-react";
 
@@ -34,17 +35,8 @@ type Props = {
   footer?: { templateName: string | null; model: string | null };
 };
 
-const ATTACHMENT_CONFIG: Partial<
-  Record<
-    AttachmentKind,
-    { label: string; dialogTitle: string; extensions: string[] }
-  >
-> = {
-  template: {
-    label: "Vorlage",
-    dialogTitle: "Vorlage wählen",
-    extensions: ["docx"],
-  },
+const ATTACHMENT_EXTENSIONS: Record<string, string[]> = {
+  template: ["docx"],
 };
 
 export function ChatInput({
@@ -57,6 +49,7 @@ export function ChatInput({
   onAgentUpdated,
   footer,
 }: Props) {
+  const { t } = useTranslation();
   const [value, setValue] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
   const lastTokenRef = useRef<number | null>(null);
@@ -84,7 +77,7 @@ export function ChatInput({
   }
 
   const visibleSlots = (acceptsAttachments ?? []).filter(
-    (k): k is AttachmentKind => k in ATTACHMENT_CONFIG,
+    (k): k is AttachmentKind => k in ATTACHMENT_EXTENSIONS,
   );
 
   return (
@@ -98,8 +91,8 @@ export function ChatInput({
           disabled={disabled}
           placeholder={
             disabled
-              ? (disabledReason ?? "Chat ist deaktiviert.")
-              : "Schreib eine Nachricht …  (⌘/Ctrl + Enter zum Senden)"
+              ? (disabledReason ?? t("chat.inputDisabled"))
+              : t("chat.inputPlaceholder")
           }
           rows={3}
           className={`block w-full resize-none rounded-md bg-transparent px-3 py-2 pr-10 text-sm placeholder:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 ${
@@ -123,7 +116,7 @@ export function ChatInput({
           className="absolute bottom-1.5 right-1.5 h-7 w-7"
           onClick={handleSend}
           disabled={disabled || value.trim().length === 0}
-          title="Senden (⌘/Ctrl + Enter)"
+          title={t("chat.sendTitle")}
         >
           <ArrowUp className="h-3.5 w-3.5" />
         </Button>
@@ -134,15 +127,15 @@ export function ChatInput({
             <>
               <span
                 className="min-w-0 truncate"
-                title={`Vorlage: ${footer.templateName}`}
+                title={`${t("chatInput.template")}: ${footer.templateName}`}
               >
-                Vorlage: {footer.templateName}
+                {t("chatInput.template")}: {footer.templateName}
               </span>
               {footer.model && <span className="opacity-40">·</span>}
             </>
           )}
           {footer.model && (
-            <span className="shrink-0" title={`Modell: ${footer.model}`}>
+            <span className="shrink-0" title={footer.model!}>
               {footer.model}
             </span>
           )}
@@ -170,9 +163,11 @@ function AttachmentButton({
   agent: Agent;
   onAgentUpdated?: (agent: Agent) => void;
 }) {
-  const maybeConfig = ATTACHMENT_CONFIG[kind];
-  if (!maybeConfig) return null;
-  const config = maybeConfig;
+  const { t } = useTranslation();
+  const extensions = ATTACHMENT_EXTENSIONS[kind];
+  if (!extensions) return null;
+  const label = t("chatInput.template");
+  const dialogTitle = t("chatInput.chooseTemplate");
   const current = attachmentPath(agent, kind);
   const hasAttachment = current !== null;
   const fileName = current ? current.split(/[/\\]/).pop() : null;
@@ -182,9 +177,9 @@ function AttachmentButton({
       const picked = await open({
         directory: false,
         multiple: false,
-        title: config.dialogTitle,
+        title: dialogTitle,
         defaultPath: agent.folder ?? undefined,
-        filters: [{ name: config.label, extensions: config.extensions }],
+        filters: [{ name: label, extensions }],
       });
       if (typeof picked !== "string") return;
       const updated = await agentApi.setAttachment(agent.id, kind, picked);
@@ -203,8 +198,8 @@ function AttachmentButton({
     ? "text-muted-foreground bg-muted hover:bg-accent/60"
     : "text-warning bg-warning/10 hover:bg-warning/20";
   const tooltipText = hasAttachment
-    ? `${config.label}: ${fileName}`
-    : `${config.label} wählen`;
+    ? `${label}: ${fileName}`
+    : dialogTitle;
 
   return (
     <Tooltip>

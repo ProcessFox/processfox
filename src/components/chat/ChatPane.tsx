@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertCircle, Check, Copy, Loader2, Square, X } from "lucide-react";
 
 import { AskUserCard } from "@/components/chat/AskUserCard";
@@ -67,6 +68,7 @@ export function ChatPane({
   onDismissError,
   onOpenSettings,
 }: Props) {
+  const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -89,11 +91,11 @@ export function ChatPane({
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
         {showEmpty ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-            <div className="text-sm font-medium">Leerer Chat</div>
+            <div className="text-sm font-medium">{t("chat.emptyTitle")}</div>
             {starterPrompts && starterPrompts.length > 0 ? (
               <>
                 <div className="text-xs text-muted-foreground">
-                  Probier mal:
+                  {t("chat.trySuggestion")}
                 </div>
                 <div className="flex max-w-md flex-col gap-1.5">
                   {starterPrompts.map((p, i) => (
@@ -110,8 +112,7 @@ export function ChatPane({
               </>
             ) : (
               <div className="text-xs text-muted-foreground">
-                Schreib einfach los — oder aktiviere Skills im Agent-Editor,
-                um Vorschläge zu sehen.
+                {t("chat.noSkillsHint")}
               </div>
             )}
           </div>
@@ -173,14 +174,14 @@ export function ChatPane({
           <button
             onClick={() => fileApi.openLogsFolder().catch(() => {})}
             className="shrink-0 rounded-sm border border-destructive/40 bg-destructive/15 px-2 py-0.5 text-xs hover:bg-destructive/20"
-            title="Log-Ordner im Finder öffnen"
+            title={t("chat.openLogsInFinder")}
           >
-            Logs öffnen
+            {t("chat.openLogs")}
           </button>
           <button
             onClick={onDismissError}
             className="text-destructive/70 hover:text-destructive"
-            title="Schließen"
+            title={t("common.close")}
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -192,16 +193,16 @@ export function ChatPane({
           <div className="flex items-center gap-2">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             {pendingHitl
-              ? "wartet auf Freigabe …"
+              ? t("chat.statusApproval")
               : pendingQuestion
-                ? "wartet auf deine Antwort …"
-                : pendingTools.some((t) => t.status === "running")
-                  ? "führt Tool aus …"
-                  : "generiert …"}
+                ? t("chat.statusQuestion")
+                : pendingTools.some((pt) => pt.status === "running")
+                  ? t("chat.statusTool")
+                  : t("chat.statusGenerating")}
           </div>
           <Button size="sm" variant="outline" onClick={onCancel} className="gap-1.5">
             <Square className="h-3 w-3" />
-            Stopp
+            {t("common.stop")}
           </Button>
         </div>
       )}
@@ -215,7 +216,7 @@ export function ChatPane({
               onClick={onOpenSettings}
               className="shrink-0 rounded-sm border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-xs hover:bg-amber-500/20"
             >
-              Einstellungen öffnen
+              {t("chat.openSettings")}
             </button>
           )}
         </div>
@@ -261,6 +262,7 @@ function MessageBlock({
   message: ChatMessage;
   toolResults: Record<string, { content: string; isError: boolean }>;
 }) {
+  const { t } = useTranslation();
   const isUser = message.role === "user";
   const hasToolCalls = (message.toolCalls?.length ?? 0) > 0;
   const hasText = message.content.trim().length > 0;
@@ -297,7 +299,7 @@ function MessageBlock({
                 name={tc.name}
                 status={status}
                 arguments={tc.arguments}
-                result={res?.content ?? "Lauf wurde abgebrochen, bevor das Tool beendet hat."}
+                result={res?.content ?? t("chat.toolAborted")}
               />
             );
           })}
@@ -313,6 +315,7 @@ function MessageBlock({
  *  WebView occasionally fails to clear the `:hover` pseudo-class when the
  *  cursor leaves quickly, leaving the button stuck visible. */
 function AssistantBubble({ text }: { text: string }) {
+  const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -341,7 +344,7 @@ function AssistantBubble({ text }: { text: string }) {
       </div>
       <button
         onClick={onCopy}
-        title={copied ? "Kopiert!" : "In Zwischenablage kopieren"}
+        title={copied ? t("chat.copied") : t("chat.copyToClipboard")}
         className={`ml-1.5 mt-1.5 h-6 w-6 shrink-0 rounded-sm text-muted-foreground transition-opacity hover:bg-accent/40 hover:text-foreground ${
           visible ? "opacity-100" : "pointer-events-none opacity-0"
         }`}

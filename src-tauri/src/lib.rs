@@ -140,6 +140,7 @@ pub fn run() {
             commands::settings::set_default_model,
             commands::settings::set_first_run_done,
             commands::settings::set_custom_openai_base_url,
+            commands::settings::set_locale,
             commands::settings::available_providers,
             commands::secrets::set_api_key,
             commands::secrets::has_api_key,

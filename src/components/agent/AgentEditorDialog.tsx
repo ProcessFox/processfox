@@ -1,6 +1,7 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { Folder, Plus, Wrench, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { DynamicIcon } from "@/components/ui/DynamicIcon";
@@ -32,12 +33,14 @@ type ModelSelection =
   | { kind: "inherit" }
   | { kind: "override"; provider: string; modelId: string };
 
-const PROVIDER_OPTIONS: { value: string; label: string }[] = [
-  { value: "anthropic", label: "Anthropic" },
-  { value: "openai", label: "OpenAI" },
-  { value: "openrouter", label: "OpenRouter" },
-  { value: "local", label: "Lokal (GGUF)" },
-];
+function providerOptions(t: (key: string) => string) {
+  return [
+    { value: "anthropic", label: "Anthropic" },
+    { value: "openai", label: "OpenAI" },
+    { value: "openrouter", label: "OpenRouter" },
+    { value: "local", label: t("agent.providerLocal") },
+  ];
+}
 
 function modelRefToSelection(m: ModelRef | null): ModelSelection {
   if (!m) return { kind: "inherit" };
@@ -65,6 +68,9 @@ type ModelPickerProps = {
   defaultLabel: string;
   defaultHint: string;
   overrideHint: string;
+  noModelsHint: string;
+  chooseModelLabel: string;
+  modelPlaceholder: string;
 };
 
 function ModelOverridePicker({
@@ -74,7 +80,11 @@ function ModelOverridePicker({
   defaultLabel,
   defaultHint,
   overrideHint,
+  noModelsHint,
+  chooseModelLabel,
+  modelPlaceholder,
 }: ModelPickerProps) {
+  const { t } = useTranslation();
   return (
     <>
       <div className="flex gap-2">
@@ -119,9 +129,6 @@ function ModelOverridePicker({
               value={selection.provider}
               onChange={(e) => {
                 const nextProvider = e.target.value;
-                // Reset the model-id when switching between cloud and
-                // local, because the ID formats differ (cloud: opaque
-                // string like "claude-sonnet-4-6"; local: a filename).
                 onChange({
                   kind: "override",
                   provider: nextProvider,
@@ -131,7 +138,7 @@ function ModelOverridePicker({
               }}
               className="h-8 rounded-md border border-border bg-background px-2 text-xs"
             >
-              {PROVIDER_OPTIONS.map((p) => (
+              {providerOptions(t).map((p) => (
                 <option key={p.value} value={p.value}>
                   {p.label}
                 </option>
@@ -141,7 +148,7 @@ function ModelOverridePicker({
             {selection.provider === "local" ? (
               installed.length === 0 ? (
                 <div className="flex items-center rounded-md border border-dashed border-border bg-muted/40 px-3 text-xs text-muted-foreground">
-                  Erst ein Modell in den Einstellungen herunterladen.
+                  {noModelsHint}
                 </div>
               ) : (
                 <select
@@ -151,7 +158,7 @@ function ModelOverridePicker({
                   }
                   className="h-8 rounded-md border border-border bg-background px-2 text-xs"
                 >
-                  <option value="">— Modell wählen —</option>
+                  <option value="">{chooseModelLabel}</option>
                   {installed.map((m) => (
                     <option key={m.filename} value={m.filename}>
                       {m.filename}
@@ -165,7 +172,7 @@ function ModelOverridePicker({
                 onChange={(e) =>
                   onChange({ ...selection, modelId: e.target.value })
                 }
-                placeholder="z. B. claude-sonnet-4-6"
+                placeholder={modelPlaceholder}
                 className="text-xs"
               />
             )}
@@ -183,6 +190,7 @@ export function AgentEditorDialog({
   onClose,
   onSaved,
 }: Props) {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("Bot");
   const [folder, setFolder] = useState<string | null>(null);
@@ -210,9 +218,6 @@ export function AgentEditorDialog({
       .list()
       .then((list) => {
         setAvailableSkills(list);
-        // New agents start with every available skill enabled — the
-        // sidebar no longer surfaces per-skill toggles, so the default
-        // needs to be "everything works out of the box".
         if (mode === "create") {
           setActiveSkills(list.map((s) => s.name));
         }
@@ -262,9 +267,7 @@ export function AgentEditorDialog({
       delegationSelection.kind === "override" &&
       delegationSelection.modelId.trim().length === 0
     ) {
-      setError(
-        "Bitte ein Modell für den Hintergrund-Worker wählen oder auf Default zurücksetzen.",
-      );
+      setError(t("agent.delegationModelError"));
       return;
     }
     setSubmitting(true);
@@ -301,7 +304,6 @@ export function AgentEditorDialog({
               hitlDisabled,
               delegationProfile,
             });
-      // Sync context document attachments: clear all, then add current set.
       if (activeSkills.includes("context-document-read")) {
         await agentApi.setAttachment(saved.id, "context", null);
         for (const p of contextPaths) {
@@ -325,9 +327,9 @@ export function AgentEditorDialog({
   const inheritedHint = (() => {
     if (!settings) return "…";
     const provider = settings.defaultProvider;
-    if (!provider) return "Kein Default gesetzt (in Einstellungen konfigurieren).";
+    if (!provider) return t("agent.noDefaultSet");
     const model = settings.defaultModels?.[provider];
-    return model ? `${provider} · ${model}` : `${provider} · kein Default-Modell`;
+    return model ? `${provider} · ${model}` : `${provider} · ${t("agent.noDefaultModel")}`;
   })();
 
   return (
@@ -335,31 +337,31 @@ export function AgentEditorDialog({
       <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>
-            {mode === "create" ? "Neuer Agent" : "Agent bearbeiten"}
+            {mode === "create" ? t("agent.titleCreate") : t("agent.titleEdit")}
           </DialogTitle>
         </DialogHeader>
 
         <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 py-1">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="agent-name" className="text-xs">
-              Name
+              {t("agent.name")}
             </Label>
             <Input
               id="agent-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="z. B. Angebots-Assistent"
+              placeholder={t("agent.namePlaceholder")}
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Ordner</Label>
+            <Label className="text-xs">{t("agent.folder")}</Label>
             <div className="flex items-center gap-2">
               <div
                 className="min-w-0 flex-1 truncate rounded-md border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground"
                 title={folder ?? undefined}
               >
-                {folder ?? "Kein Ordner gewählt"}
+                {folder ?? t("agent.noFolderChosen")}
               </div>
               <Button
                 type="button"
@@ -369,42 +371,45 @@ export function AgentEditorDialog({
                 className="shrink-0 gap-2"
               >
                 <Folder className="h-3.5 w-3.5" />
-                Wählen
+                {t("common.choose")}
               </Button>
             </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="agent-prompt" className="text-xs">
-              System-Prompt
+              {t("agent.systemPrompt")}
             </Label>
             <Textarea
               id="agent-prompt"
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
               rows={4}
-              placeholder="Beschreibe, wie der Agent antworten soll …"
+              placeholder={t("agent.systemPromptPlaceholder")}
               className="resize-none"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Modell</Label>
+            <Label className="text-xs">{t("agent.model")}</Label>
             <ModelOverridePicker
               selection={selection}
               onChange={setSelection}
               installed={installed}
-              defaultLabel="Default"
+              defaultLabel={t("agent.modelDefault")}
               defaultHint={inheritedHint}
-              overrideHint="Modell für diesen Agenten festlegen"
+              overrideHint={t("agent.modelOverrideHint")}
+              noModelsHint={t("agent.localModelDownloadFirst")}
+              chooseModelLabel={t("agent.localModelChoose")}
+              modelPlaceholder={t("agent.localModelPlaceholder")}
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs">Skills</Label>
+            <Label className="text-xs">{t("agent.skills")}</Label>
             {availableSkills.length === 0 ? (
               <div className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                Keine Skills verfügbar.
+                {t("agent.noSkills")}
               </div>
             ) : (
               <div className="flex flex-col gap-0.5 rounded-md border border-border bg-background p-2">
@@ -445,11 +450,11 @@ export function AgentEditorDialog({
 
           {activeSkills.includes("context-document-read") && (
             <div className="flex flex-col gap-1.5">
-              <Label className="text-xs">Kontext-Dokumente</Label>
+              <Label className="text-xs">{t("agent.contextDocuments")}</Label>
               <div className="flex flex-col gap-1 rounded-md border border-border bg-background p-2">
                 {contextPaths.length === 0 && (
                   <div className="px-1 py-0.5 text-xs text-muted-foreground">
-                    Noch keine Kontext-Dokumente hinterlegt.
+                    {t("agent.noContextDocs")}
                   </div>
                 )}
                 {contextPaths.map((p) => {
@@ -502,11 +507,11 @@ export function AgentEditorDialog({
                   }}
                 >
                   <Plus className="h-3 w-3" />
-                  Hinzufügen
+                  {t("common.add")}
                 </Button>
                 {!folder && (
                   <div className="px-1 text-[10px] text-muted-foreground">
-                    Zuerst einen Ordner für den Agenten wählen.
+                    {t("agent.chooseFolderFirst")}
                   </div>
                 )}
               </div>
@@ -522,12 +527,10 @@ export function AgentEditorDialog({
             />
             <div className="flex flex-col gap-0.5">
               <span className="text-xs font-medium">
-                Schreiben ohne Rückfrage
+                {t("agent.hitlDisabledTitle")}
               </span>
               <span className="text-xs text-muted-foreground">
-                Schreib-Tools laufen sofort durch — der Freigabe-Dialog wird
-                übersprungen. Vorsicht: nur für Agenten verwenden, denen du
-                das eigenständige Arbeiten in „ihrem" Ordner zutraust.
+                {t("agent.hitlDisabledDesc")}
               </span>
             </div>
           </label>
@@ -542,14 +545,10 @@ export function AgentEditorDialog({
               />
               <div className="flex flex-col gap-0.5">
                 <span className="text-xs font-medium">
-                  Hintergrund-Worker (Beta)
+                  {t("agent.delegationTitle")}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  Aktiviert Bulk-Werkzeuge, die pro Item eine fokussierte
-                  Inferenz ausführen — z. B. um eine XLSX-Spalte für jede Zeile
-                  zu generieren. Standardmäßig antwortet der Worker knapp und
-                  ohne Formatierung; das Modell erbt vom Agenten. Beide Werte
-                  können hier überschrieben werden.
+                  {t("agent.delegationDesc")}
                 </span>
               </div>
             </label>
@@ -560,24 +559,27 @@ export function AgentEditorDialog({
                   htmlFor="delegation-prompt"
                   className="text-xs"
                 >
-                  System-Prompt für den Worker
+                  {t("agent.delegationPromptLabel")}
                 </Label>
                 <Textarea
                   id="delegation-prompt"
                   value={delegationSystemPrompt}
                   onChange={(e) => setDelegationSystemPrompt(e.target.value)}
                   rows={3}
-                  placeholder="leer = Standard-Worker-Prompt (knappe, direkte Antwort, keine Markdown-Formatierung, keine Optionen-Liste)"
+                  placeholder={t("agent.delegationPromptPlaceholder")}
                   className="resize-none text-xs"
                 />
-                <Label className="text-xs">Modell für den Worker</Label>
+                <Label className="text-xs">{t("agent.delegationModelLabel")}</Label>
                 <ModelOverridePicker
                   selection={delegationSelection}
                   onChange={setDelegationSelection}
                   installed={installed}
-                  defaultLabel="Wie der Agent"
-                  defaultHint="Erbt das Modell des Eltern-Agenten."
-                  overrideHint="Eigenes Modell für den Worker"
+                  defaultLabel={t("agent.delegationDefaultLabel")}
+                  defaultHint={t("agent.delegationDefaultHint")}
+                  overrideHint={t("agent.delegationOverrideHint")}
+                  noModelsHint={t("agent.localModelDownloadFirst")}
+                  chooseModelLabel={t("agent.localModelChoose")}
+                  modelPlaceholder={t("agent.localModelPlaceholder")}
                 />
               </div>
             )}
@@ -592,13 +594,13 @@ export function AgentEditorDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={submitting}>
-            Abbrechen
+            {t("common.cancel")}
           </Button>
           <Button
             onClick={handleSave}
             disabled={submitting || name.trim().length === 0}
           >
-            {mode === "create" ? "Anlegen" : "Speichern"}
+            {mode === "create" ? t("common.create") : t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

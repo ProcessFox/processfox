@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Tree,
   type NodeApi,
@@ -44,6 +45,7 @@ export function FileTree({
   onSelectFile,
   onRequestPickFolder,
 }: Props) {
+  const { t } = useTranslation();
   const hasFolder = Boolean(agentFolder);
   const [data, setData] = useState<TreeNode[]>([]);
   const [loading, setLoading] = useState(false);
@@ -157,36 +159,36 @@ export function FileTree({
     if (!agentId) {
       return (
         <EmptyState
-          title="Kein Agent ausgewählt"
-          description="Leg oben einen Agenten an."
+          title={t("fileTree.noAgent")}
+          description={t("fileTree.noAgentHint")}
         />
       );
     }
     if (!hasFolder) {
       return (
         <EmptyState
-          title="Kein Ordner gewählt"
-          description="Verknüpfe einen Ordner mit diesem Agenten."
-          action={{ label: "Ordner wählen", onClick: onRequestPickFolder }}
+          title={t("fileTree.noFolder")}
+          description={t("fileTree.noFolderHint")}
+          action={{ label: t("fileTree.chooseFolder"), onClick: onRequestPickFolder }}
         />
       );
     }
     if (loading) {
       return (
-        <div className="px-3 py-2 text-xs text-muted-foreground">Lädt …</div>
+        <div className="px-3 py-2 text-xs text-muted-foreground">{t("common.loading")}</div>
       );
     }
     if (error) {
       return (
         <div className="px-3 py-2 text-xs text-destructive">
-          Fehler: {error}
+          {t("fileTree.error", { message: error })}
         </div>
       );
     }
     if (data.length === 0) {
       return (
         <div className="px-3 py-2 text-xs text-muted-foreground">
-          Der Ordner ist leer.
+          {t("fileTree.emptyFolder")}
         </div>
       );
     }
@@ -223,6 +225,7 @@ export function FileTree({
     size.height,
     onRequestPickFolder,
     onSelectFile,
+    t,
   ]);
 
   const showRoot = Boolean(agentId && hasFolder && agentFolder);

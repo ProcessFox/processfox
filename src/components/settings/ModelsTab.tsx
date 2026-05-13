@@ -9,6 +9,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -54,6 +55,7 @@ type Props = {
 };
 
 export function ModelsTab({ settings, onSettingsChange }: Props) {
+  const { t } = useTranslation();
   const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
   const [installed, setInstalled] = useState<InstalledModel[]>([]);
   const [pendingDelete, setPendingDelete] = useState<InstalledModel | null>(
@@ -252,14 +254,14 @@ export function ModelsTab({ settings, onSettingsChange }: Props) {
       >
         <DialogContent className="sm:max-w-[440px]">
           <DialogHeader>
-            <DialogTitle>Modell löschen?</DialogTitle>
+            <DialogTitle>{t("models.deleteTitle")}</DialogTitle>
             <DialogDescription className="pt-2 text-foreground">
               <span className="font-mono text-xs">
                 {pendingDelete?.filename}
               </span>
               <span className="mt-2 block text-muted-foreground">
                 {pendingDelete
-                  ? `Diese Datei (${formatBytes(pendingDelete.sizeBytes)}) wird sofort von der Festplatte entfernt — kein Papierkorb. Erneuter Download ist jederzeit aus dem Katalog möglich.`
+                  ? t("models.deleteDesc", { size: formatBytes(pendingDelete.sizeBytes) })
                   : ""}
               </span>
             </DialogDescription>
@@ -270,14 +272,14 @@ export function ModelsTab({ settings, onSettingsChange }: Props) {
               onClick={() => setPendingDelete(null)}
               disabled={deleting}
             >
-              Abbrechen
+              {t("common.cancel")}
             </Button>
             <Button
               variant="destructive"
               onClick={confirmDelete}
               disabled={deleting}
             >
-              {deleting ? "Lösche …" : "Löschen"}
+              {deleting ? t("common.deleting") : t("common.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -293,10 +295,11 @@ function HardwareBanner({
   hardware: HardwareInfo | null;
   catalog: CatalogEntry[];
 }) {
+  const { t } = useTranslation();
   if (!hardware) {
     return (
       <div className="rounded-md border border-border bg-surface p-3 text-xs text-muted-foreground">
-        Ermittle Hardware …
+        {t("models.detectingHardware")}
       </div>
     );
   }
@@ -308,11 +311,11 @@ function HardwareBanner({
       <Cpu className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
       <div className="flex-1 text-xs">
         <div className="text-sm font-medium">
-          {hardware.ramGb} GB Arbeitsspeicher erkannt
+          {t("models.ramDetected", { gb: hardware.ramGb })}
         </div>
         {recommended ? (
           <div className="mt-0.5 text-muted-foreground">
-            Empfehlung für deine Hardware:{" "}
+            {t("models.recommendedFor")}{" "}
             <span className="font-medium text-foreground">
               {recommended.title}
             </span>{" "}
@@ -320,8 +323,7 @@ function HardwareBanner({
           </div>
         ) : (
           <div className="mt-0.5 text-muted-foreground">
-            Keines der kuratierten Modelle passt komfortabel — du kannst
-            trotzdem ein kleineres laden oder eine Cloud-API nutzen.
+            {t("models.noRecommendation")}
           </div>
         )}
       </div>
@@ -348,6 +350,7 @@ function CatalogCard({
   onDelete: () => void;
   onDismissError: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-md border border-border bg-surface p-4">
       <div className="flex items-start justify-between gap-3">
@@ -357,19 +360,19 @@ function CatalogCard({
             {isRecommended && (
               <span className="flex items-center gap-1 rounded-sm border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-primary">
                 <Sparkles className="h-2.5 w-2.5" />
-                Empfohlen
+                {t("models.recommended")}
               </span>
             )}
             {isInstalled && (
               <span className="flex items-center gap-1 rounded-sm border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
                 <Check className="h-2.5 w-2.5" />
-                Installiert
+                {t("models.installed")}
               </span>
             )}
           </div>
           <div className="mt-0.5 text-xs text-muted-foreground">
             {entry.vendor} · {entry.quant} · {formatBytes(entry.sizeBytes)} ·
-            ab {entry.minRamGb} GB RAM
+            {t("models.minRam", { gb: entry.minRamGb })}
           </div>
           <div className="mt-1.5 text-xs text-muted-foreground">
             {entry.description}
@@ -382,7 +385,7 @@ function CatalogCard({
               variant="ghost"
               size="icon"
               onClick={onDelete}
-              title="Modell entfernen"
+              title={t("models.removeModel")}
               className="h-8 w-8"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -396,12 +399,12 @@ function CatalogCard({
               className="gap-1.5"
             >
               <Square className="h-3 w-3" />
-              Stopp
+              {t("common.stop")}
             </Button>
           ) : (
             <Button size="sm" onClick={onDownload} className="gap-1.5">
               <Download className="h-3.5 w-3.5" />
-              Download
+              {t("common.download")}
             </Button>
           )}
         </div>
@@ -428,7 +431,7 @@ function CatalogCard({
             onClick={onDismissError}
             className="text-destructive/70 hover:text-destructive"
           >
-            Schließen
+            {t("common.close")}
           </button>
         </div>
       )}
@@ -478,6 +481,7 @@ function CustomUrlDownload({
   onStart: (url: string, filename: string, downloadId: string) => Promise<void>;
   onCancel: (downloadId: string) => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [url, setUrl] = useState("");
   const [downloadId, setDownloadId] = useState<string | null>(null);
 
@@ -498,10 +502,9 @@ function CustomUrlDownload({
 
   return (
     <div className="rounded-md border border-dashed border-border bg-muted/30 p-4">
-      <div className="text-sm font-medium">Eigene GGUF-URL</div>
+      <div className="text-sm font-medium">{t("models.customUrlTitle")}</div>
       <div className="mt-0.5 text-xs text-muted-foreground">
-        Direkter Link auf eine <code>.gguf</code>-Datei (z. B. von
-        HuggingFace).
+        {t("models.customUrlDesc")}
       </div>
       <div className="mt-3 flex flex-col gap-2">
         <Label className="text-xs">URL</Label>
@@ -521,7 +524,7 @@ function CustomUrlDownload({
               className="gap-1.5"
             >
               <Square className="h-3 w-3" />
-              Stopp
+              {t("common.stop")}
             </Button>
           ) : (
             <Button
@@ -531,15 +534,15 @@ function CustomUrlDownload({
               className="gap-1.5"
             >
               <Download className="h-3.5 w-3.5" />
-              Download
+              {t("common.download")}
             </Button>
           )}
         </div>
         {filename && (
           <div className="text-xs text-muted-foreground">
-            Speichert als{" "}
+            {t("models.savesAs")}{" "}
             <span className="text-foreground">{filename}</span>
-            {alreadyInstalled && " — bereits installiert."}
+            {alreadyInstalled && ` — ${t("models.alreadyInstalled")}`}
           </div>
         )}
         {currentState?.status === "running" && (

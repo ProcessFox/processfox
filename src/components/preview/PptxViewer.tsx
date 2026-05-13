@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { previewApi, type PptxPreview, type SlidePreview } from "@/lib/tauri";
 
@@ -17,6 +18,7 @@ type State =
  *  intentionally don't try to recreate the visual layout — see
  *  `core::preview::pptx` for why. */
 export function PptxViewer({ agentId, filePath }: Props) {
+  const { t } = useTranslation();
   const [state, setState] = useState<State>({ kind: "loading" });
 
   useEffect(() => {
@@ -31,7 +33,7 @@ export function PptxViewer({ agentId, filePath }: Props) {
       .catch((e: unknown) => {
         if (cancelled) return;
         const message =
-          (e as { message?: string })?.message ?? String(e ?? "Unbekannter Fehler");
+          (e as { message?: string })?.message ?? String(e ?? t("common.unknownError"));
         setState({ kind: "error", message });
       });
     return () => {
@@ -42,7 +44,7 @@ export function PptxViewer({ agentId, filePath }: Props) {
   if (state.kind === "loading") {
     return (
       <div className="flex flex-1 items-center justify-center p-6 text-xs text-muted-foreground">
-        Lädt …
+        {t("common.loading")}
       </div>
     );
   }
@@ -58,7 +60,7 @@ export function PptxViewer({ agentId, filePath }: Props) {
   if (slides.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-muted-foreground">
-        Diese Präsentation enthält keine Folien.
+        {t("pptx.noSlides")}
       </div>
     );
   }
@@ -75,8 +77,9 @@ export function PptxViewer({ agentId, filePath }: Props) {
 }
 
 function SlideCard({ slide }: { slide: SlidePreview }) {
+  const { t } = useTranslation();
   const [notesOpen, setNotesOpen] = useState(false);
-  const titleText = slide.title?.trim() || `Folie ${slide.index}`;
+  const titleText = slide.title?.trim() || t("pptx.slide", { index: slide.index });
   return (
     <div className="rounded-md border border-border bg-background p-4 shadow-subtle">
       <div className="mb-2 flex items-baseline gap-2">
@@ -96,7 +99,7 @@ function SlideCard({ slide }: { slide: SlidePreview }) {
       )}
       {slide.body.length === 0 && !slide.title && (
         <div className="text-xs italic text-muted-foreground">
-          Kein Text auf dieser Folie.
+          {t("pptx.noText")}
         </div>
       )}
       {slide.notes.length > 0 && (
@@ -105,7 +108,7 @@ function SlideCard({ slide }: { slide: SlidePreview }) {
             onClick={() => setNotesOpen((v) => !v)}
             className="text-xs text-muted-foreground hover:text-foreground"
           >
-            {notesOpen ? "▾" : "▸"} Notizen ({slide.notes.length})
+            {notesOpen ? "▾" : "▸"} {t("pptx.notes", { count: slide.notes.length })}
           </button>
           {notesOpen && (
             <div className="mt-2 space-y-1 text-xs text-muted-foreground">

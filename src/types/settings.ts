@@ -3,4 +3,5 @@ export interface Settings {
   defaultModels: Record<string, string>;
   firstRunDone: boolean;
   customOpenAiBaseUrl: string | null;
+  locale: string | null;
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { AgentEditorDialog } from "@/components/agent/AgentEditorDialog";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -15,6 +16,7 @@ import {
   settingsApi,
   skillsApi,
 } from "@/lib/tauri";
+import { applyPersistedLocale } from "@/lib/i18n";
 import { pickStarterPrompts } from "@/lib/starterPrompts";
 import type { Agent } from "@/types/agent";
 import type { CatalogEntry, InstalledModel } from "@/types/models";
@@ -38,6 +40,7 @@ export default function App() {
 }
 
 function AppShell() {
+  const { t } = useTranslation();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [activeAgent, setActiveAgent] = useState<Agent | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -121,6 +124,7 @@ function AppShell() {
   const refreshSettings = useCallback(async () => {
     const s = await settingsApi.get();
     setSettings(s);
+    applyPersistedLocale(s.locale);
     return s;
   }, []);
 
@@ -308,14 +312,13 @@ function AppShell() {
     if (!activeAgent) {
       return {
         chatDisabled: true,
-        chatDisabledReason: "Leg zunächst einen Agenten an." as string | undefined,
+        chatDisabledReason: t("chat.disabledNoAgent") as string | undefined,
       };
     }
     if (!effectiveModel) {
       return {
         chatDisabled: true,
-        chatDisabledReason:
-          "Kein Modell konfiguriert — in den Einstellungen einen Default setzen oder im Agenten überschreiben.",
+        chatDisabledReason: t("chat.disabledNoModel"),
       };
     }
     if (effectiveModel.provider === "local") {
@@ -325,13 +328,13 @@ function AppShell() {
       if (!present) {
         return {
           chatDisabled: true,
-          chatDisabledReason: `Lokales Modell „${effectiveModel.modelId}" ist nicht installiert.`,
+          chatDisabledReason: t("chat.disabledModelNotInstalled", { modelId: effectiveModel.modelId }),
         };
       }
     } else if (hasApiKey === false) {
       return {
         chatDisabled: true,
-        chatDisabledReason: `Kein API-Key für ${effectiveModel.provider} hinterlegt.`,
+        chatDisabledReason: t("chat.disabledNoApiKey", { provider: effectiveModel.provider }),
       };
     }
     return {

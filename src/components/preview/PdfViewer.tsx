@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Document, Page, pdfjs } from "react-pdf";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
 import { convertFileSrc } from "@tauri-apps/api/core";
@@ -22,6 +23,7 @@ type Props = {
 };
 
 export function PdfViewer({ filePath }: Props) {
+  const { t } = useTranslation();
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1);
@@ -55,7 +57,7 @@ export function PdfViewer({ filePath }: Props) {
   if (error) {
     return (
       <div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-destructive">
-        PDF konnte nicht geladen werden: {error}
+        {t("pdf.loadError", { error })}
       </div>
     );
   }
@@ -72,6 +74,7 @@ export function PdfViewer({ filePath }: Props) {
         }
         onZoomIn={() => setScale((s) => Math.min(MAX_SCALE, s + SCALE_STEP))}
         onZoomOut={() => setScale((s) => Math.max(MIN_SCALE, s - SCALE_STEP))}
+        t={t}
       />
       <div
         ref={containerRef}
@@ -82,7 +85,7 @@ export function PdfViewer({ filePath }: Props) {
           onLoadSuccess={({ numPages }) => setNumPages(numPages)}
           onLoadError={(err) => setError(err.message)}
           loading={
-            <div className="text-xs text-muted-foreground">Lädt …</div>
+            <div className="text-xs text-muted-foreground">{t("common.loading")}</div>
           }
         >
           {containerWidth !== null && (
@@ -110,6 +113,7 @@ function Toolbar({
   onNext,
   onZoomIn,
   onZoomOut,
+  t,
 }: {
   page: number;
   numPages: number | null;
@@ -118,6 +122,7 @@ function Toolbar({
   onNext: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  t: (key: string) => string;
 }) {
   return (
     <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-surface px-3 py-1.5 text-xs">
@@ -125,7 +130,7 @@ function Toolbar({
         <ToolbarButton
           onClick={onPrev}
           disabled={page <= 1}
-          title="Vorherige Seite"
+          title={t("pdf.prevPage")}
         >
           <ChevronLeft className="h-3.5 w-3.5" />
         </ToolbarButton>
@@ -135,7 +140,7 @@ function Toolbar({
         <ToolbarButton
           onClick={onNext}
           disabled={numPages === null || page >= numPages}
-          title="Nächste Seite"
+          title={t("pdf.nextPage")}
         >
           <ChevronRight className="h-3.5 w-3.5" />
         </ToolbarButton>
@@ -144,7 +149,7 @@ function Toolbar({
         <ToolbarButton
           onClick={onZoomOut}
           disabled={scale <= MIN_SCALE + 1e-3}
-          title="Verkleinern"
+          title={t("pdf.zoomOut")}
         >
           <ZoomOut className="h-3.5 w-3.5" />
         </ToolbarButton>
@@ -154,7 +159,7 @@ function Toolbar({
         <ToolbarButton
           onClick={onZoomIn}
           disabled={scale >= MAX_SCALE - 1e-3}
-          title="Vergrößern"
+          title={t("pdf.zoomIn")}
         >
           <ZoomIn className="h-3.5 w-3.5" />
         </ToolbarButton>

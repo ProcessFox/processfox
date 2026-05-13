@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Crepe } from "@milkdown/crepe";
 
 import { fileApi } from "@/lib/tauri";
@@ -30,6 +31,7 @@ type State =
  *  TextEditor: optimistic-concurrency via mtime, debounced auto-save,
  *  reload banner on external modification. */
 export function MarkdownEditor({ agentId, filePath, onStatus }: Props) {
+  const { t } = useTranslation();
   const [state, setState] = useState<State>({ kind: "loading" });
   // Bump on each successful (re)load so CrepeView remounts with the new
   // content. Crepe doesn't expose `setMarkdown`, so destroy+recreate is the
@@ -124,7 +126,7 @@ export function MarkdownEditor({ agentId, filePath, onStatus }: Props) {
   if (state.kind === "loading") {
     return (
       <div className="flex flex-1 items-center justify-center p-6 text-xs text-muted-foreground">
-        Lädt …
+        {t("common.loading")}
       </div>
     );
   }
@@ -138,7 +140,7 @@ export function MarkdownEditor({ agentId, filePath, onStatus }: Props) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {state.conflict && <ConflictBanner onReload={() => void load()} />}
+      {state.conflict && <ConflictBanner onReload={() => void load()} t={t} />}
       <CrepeView
         key={reloadKey}
         initialMarkdown={state.initialContent}
@@ -189,18 +191,17 @@ function CrepeView({
   return <div ref={containerRef} className="preview-md-host min-h-0 flex-1" />;
 }
 
-function ConflictBanner({ onReload }: { onReload: () => void }) {
+function ConflictBanner({ onReload, t }: { onReload: () => void; t: (key: string) => string }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-border bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-100">
       <span>
-        Datei wurde extern geändert. Deine Änderungen sind noch nicht
-        gespeichert.
+        {t("viewer.conflictMessage")}
       </span>
       <button
         onClick={onReload}
         className="rounded-md border border-amber-300 bg-white px-2 py-0.5 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900 dark:text-amber-100 dark:hover:bg-amber-800"
       >
-        Neu laden
+        {t("common.reload")}
       </button>
     </div>
   );

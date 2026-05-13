@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { previewApi } from "@/lib/tauri";
 
@@ -17,6 +18,7 @@ type State =
  *  scripts, embeds) confined; we additionally avoid emitting `<script>`
  *  on the Rust side. */
 export function DocxViewer({ agentId, filePath }: Props) {
+  const { t } = useTranslation();
   const [state, setState] = useState<State>({ kind: "loading" });
 
   useEffect(() => {
@@ -31,7 +33,7 @@ export function DocxViewer({ agentId, filePath }: Props) {
       .catch((e: unknown) => {
         if (cancelled) return;
         const message =
-          (e as { message?: string })?.message ?? String(e ?? "Unbekannter Fehler");
+          (e as { message?: string })?.message ?? String(e ?? t("common.unknownError"));
         setState({ kind: "error", message });
       });
     return () => {
@@ -42,7 +44,7 @@ export function DocxViewer({ agentId, filePath }: Props) {
   if (state.kind === "loading") {
     return (
       <div className="flex flex-1 items-center justify-center p-6 text-xs text-muted-foreground">
-        Lädt …
+        {t("common.loading")}
       </div>
     );
   }
@@ -56,7 +58,7 @@ export function DocxViewer({ agentId, filePath }: Props) {
   return (
     <iframe
       srcDoc={state.srcDoc}
-      title="DOCX-Vorschau"
+      title={t("viewer.docxTitle")}
       sandbox=""
       className="flex-1 border-0 bg-background"
     />

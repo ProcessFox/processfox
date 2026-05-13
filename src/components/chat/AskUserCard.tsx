@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { HelpCircle, Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ type Props = {
 };
 
 export function AskUserCard({ question, busy, onRespond }: Props) {
+  const { t } = useTranslation();
   const [answer, setAnswer] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -31,7 +33,7 @@ export function AskUserCard({ question, busy, onRespond }: Props) {
     <div className="flex flex-col gap-2 rounded-md border border-sky-500/40 bg-sky-500/10 p-3 text-xs text-sky-900 dark:text-sky-200">
       <div className="flex items-center gap-2">
         <HelpCircle className="h-3.5 w-3.5" />
-        <span className="text-sm font-medium">Frage vom Agenten</span>
+        <span className="text-sm font-medium">{t("chat.agentQuestion")}</span>
       </div>
 
       <div className="rounded-sm border border-sky-500/30 bg-background/60 px-2 py-1.5 text-sm whitespace-pre-wrap">
@@ -42,7 +44,7 @@ export function AskUserCard({ question, busy, onRespond }: Props) {
         ref={ref}
         value={answer}
         onChange={(e) => setAnswer(e.target.value)}
-        placeholder="Antwort eingeben…"
+        placeholder={t("chat.answerPlaceholder")}
         disabled={busy}
         rows={3}
         className="min-h-16 text-xs"
@@ -55,7 +57,7 @@ export function AskUserCard({ question, busy, onRespond }: Props) {
       />
 
       <div className="flex items-center justify-between gap-2 pt-1">
-        <span className="text-xs opacity-70">⌘/Ctrl + Enter senden</span>
+        <span className="text-xs opacity-70">{t("chat.sendHint")}</span>
         <Button
           size="sm"
           onClick={submit}
@@ -63,7 +65,7 @@ export function AskUserCard({ question, busy, onRespond }: Props) {
           className="gap-1.5"
         >
           <Send className="h-3.5 w-3.5" />
-          Antwort senden
+          {t("chat.sendAnswer")}
         </Button>
       </div>
     </div>
