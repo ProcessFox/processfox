@@ -117,8 +117,16 @@ export const fileApi = {
     listen<string[]>("files-dropped", (evt) => handler(evt.payload)),
 };
 
+export interface AppInfo {
+  version: string;
+  edition: "community" | "store";
+  editionName: string;
+  licenseSpdx: string;
+}
+
 export const settingsApi = {
   get: () => invoke<Settings>("get_settings"),
+  getAppInfo: () => invoke<AppInfo>("get_app_info"),
   setDefaultProvider: (provider: string | null) =>
     invoke<Settings>("set_default_provider", { provider }),
   setDefaultModel: (provider: string, model: string | null) =>

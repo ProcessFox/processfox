@@ -3,6 +3,7 @@ pub mod chat;
 pub mod delegation;
 pub mod error;
 pub mod hardware;
+pub mod license;
 pub mod llm;
 pub mod models;
 pub mod preview;

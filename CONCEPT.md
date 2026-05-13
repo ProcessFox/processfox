@@ -298,7 +298,7 @@ Da Gemma 4 E2B/E4B Tool-Calling-Output nicht immer sauber im JSON-Format liefert
 | PDF | `pdfium-render` |
 | CSV | `csv` |
 | Sichere Speicherung | Tauri Stronghold oder Rust `keyring` |
-| Updater | Tauri Updater (GitHub Releases als Quelle) |
+| Distribution | GitHub Releases (manuell) + Apple App Store / Microsoft Store (Einmalzahlung) |
 | CI/CD | GitHub Actions |
 
 ## 11. Sprache & Lokalisierung
@@ -308,13 +308,21 @@ Da Gemma 4 E2B/E4B Tool-Calling-Output nicht immer sauber im JSON-Format liefert
 - **Agent-Antworten:** Englische Skills enthalten den Standard-Hinweis "Antworte in der Sprache, die der Nutzer verwendet hat".
 - **Onboarding-Hinweis:** Bei Modell-Auswahl erscheint der Hinweis "Für bessere deutsche Antwortqualität empfehlen wir Gemma 4 E4B oder größer".
 
-## 12. Distribution
+## 12. Distribution & Monetarisierung
 
 - **Plattformen:** macOS (Universal: Apple Silicon + Intel), Windows x64, Linux (AppImage und .deb).
 - **Release-Kanal:** nur Stable.
-- **Auto-Updater:** Tauri Updater, prüft GitHub Releases.
-- **Code-Signing:** in v1.0 noch nicht (User akzeptieren Sicherheits-Warnung; dokumentieren im README). Zu planen für v1.1.
-- **Lizenz:** MIT.
+- **Lizenz:** GNU GPL v3 — erlaubt explizit den Verkauf von Kopien.
+- **Zwei Vertriebswege:**
+
+| Kanal | Updates | Preis |
+|---|---|---|
+| **GitHub Releases** (`.dmg`, `.msi`, `.AppImage`) | Manuell — kein „Neue Version verfügbar"-Banner, kein Auto-Updater | Kostenlos |
+| **Apple App Store / Microsoft Store** | Auto-Update via Store-Mechanismus | Einmalzahlung |
+
+- **Kein eigener Tauri-Updater.** Die App enthält keinen Update-Check und keine Update-Benachrichtigung. Store-Versionen nutzen den nativen Store-Update-Mechanismus.
+- **Code-Signing:** Für Store-Einreichung erforderlich (Apple Developer Program, Windows-EV-Zertifikat). GitHub-Downloads sind in v1.0 unsigniert (User akzeptieren Sicherheits-Warnung; dokumentieren im README).
+- **GPL-Kompatibilität:** Quellcode bleibt öffentlich auf GitHub. Jeder darf forken und selbst bauen — der Store-Preis ist eine Convenience-Gebühr für automatische Updates und verifizierte Distribution, kein Zugangs-Gate zum Code.
 
 ## 13. MVP-Scope v1.0
 
@@ -330,7 +338,6 @@ Da Gemma 4 E2B/E4B Tool-Calling-Output nicht immer sauber im JSON-Format liefert
 - Cloud-API-Hinterlegung optional (Anthropic, OpenAI, OpenRouter).
 - Sandbox für eingebaute Skill-Scripts (nicht für User-Scripts).
 - Einstellungen-Modal (Modelle, APIs, Theme, About).
-- Auto-Updater via GitHub Releases.
 - Sprache: Deutsch.
 
 ### Nicht drin (Roadmap für spätere Versionen)

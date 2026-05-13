@@ -1,0 +1,64 @@
+name: Release (Store)
+
+# Builds the Store edition for Apple App Store and Microsoft Store submission.
+# Produces unsigned artifacts as GitHub Actions artifacts (not a GitHub Release).
+# Code signing and Store submission happen outside CI for now.
+on:
+  workflow_dispatch:
+
+jobs:
+  build-store:
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: ''
+            label: macos-arm64
+          - platform: windows-latest
+            args: ''
+            label: windows-x64
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Store license
+        shell: bash
+        run: cp LICENSE-STORE LICENSE
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build Store edition
+        env:
+          PROCESSFOX_EDITION: store
+          # TODO: Add Apple code signing (APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD,
+          #       APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID)
+          # TODO: Add Windows code signing (WINDOWS_CERTIFICATE, WINDOWS_CERTIFICATE_PASSWORD)
+        run: npm run tauri build -- ${{ matrix.args }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: store-build-${{ matrix.label }}
+          path: |
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*.app
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*.exe

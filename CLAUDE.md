@@ -19,7 +19,8 @@ Dieses Dokument richtet sich an Claude Code (und an alle anderen LLM-gestützten
 - **Frontend:** React 19 + Vite + TypeScript + Tailwind + shadcn/ui.
 - **Backend:** Rust (pure Rust, keine Python-Abhängigkeit).
 - **LLM-Runtime:** `llama-cpp-2` (in Phase 3 von mistral.rs migriert, weil dessen GGUF-Loader Gemma 4 nicht kannte). Nutzt `apply_chat_template_oaicompat` + `streaming_state_oaicompat` für native Tool-Calling- und Reasoning-Extraktion. Cloud-Provider parallel via separate Implementierungen.
-- **Distribution:** GitHub Releases, Auto-Updater via Tauri Updater, GitHub Actions.
+- **Distribution:** GitHub Releases (kostenlos, ohne Auto-Updater) + Apple App Store / Microsoft Store (Einmalzahlung, Auto-Update via Store). Kein eigener Tauri-Updater.
+- **Lizenz:** Dual-Licensing — GPL v3 (Community Edition, GitHub) + proprietäre Store-Lizenz. Gesteuert über `PROCESSFOX_EDITION` Env-Variable (`community` | `store`), ausgewertet in `build.rs` als `cfg(edition_store)`. Laufzeit-Abfrage über `core::license::Edition::current()`.
 
 ## 2. Goldene Regeln
 
@@ -302,7 +303,7 @@ Zusätzlich: Symlink-Escape-Prävention durch `canonicalize`; Denylist für spez
 3. Auf GitHub → Actions → "Release" → **"Run workflow"** klicken (`workflow_dispatch`).
 4. GitHub Actions baut auf drei Plattformen (macOS ARM, Linux x64, Windows x64). Die `tauri-action` erstellt automatisch den Tag `v<VERSION>` und ein **Draft-Release** mit den Build-Artefakten.
 5. Draft-Release auf GitHub öffnen, Release-Notes ergänzen (was ist neu, was ist bekannt fehlerhaft), dann **"Publish release"** klicken.
-6. Auto-Updater holt sich die neue Version bei den Nutzer:innen (sobald Updater-Signing eingerichtet ist — siehe TODOs in `release.yml`).
+6. Für Store-Versionen: neue Builds über die jeweiligen Store-Portale einreichen (Apple App Store Connect, Microsoft Partner Center). Auto-Updates laufen über den Store-Mechanismus — kein eigener Updater nötig.
 
 ---
 

@@ -142,6 +142,7 @@ pub fn run() {
             commands::settings::set_custom_openai_base_url,
             commands::settings::set_locale,
             commands::settings::available_providers,
+            commands::settings::get_app_info,
             commands::secrets::set_api_key,
             commands::secrets::has_api_key,
             commands::secrets::clear_api_key,

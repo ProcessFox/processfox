@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { settingsApi } from "@/lib/tauri";
+import { settingsApi, type AppInfo } from "@/lib/tauri";
 import { SUPPORTED_LANGUAGES } from "@/lib/i18n";
 import type { Settings } from "@/types/settings";
 
@@ -32,6 +32,7 @@ export function SettingsDialog({
   const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
 
   const THEME_OPTIONS: { value: Theme; label: string }[] = [
     { value: "system", label: t("settings.themeSystem") },
@@ -42,6 +43,7 @@ export function SettingsDialog({
   useEffect(() => {
     if (!open) return;
     settingsApi.get().then(setSettings).catch(console.error);
+    settingsApi.getAppInfo().then(setAppInfo).catch(console.error);
   }, [open]);
 
   function handleSettingsChange(s: Settings) {
@@ -146,11 +148,20 @@ export function SettingsDialog({
             <div className="flex flex-col gap-1 text-xs">
               <div className="text-sm font-medium">ProcessFox</div>
               <div className="text-muted-foreground">
-                {t("settings.version")}
+                {appInfo
+                  ? `Version ${appInfo.version} · ${appInfo.editionName} Edition`
+                  : t("settings.version")}
               </div>
               <div className="text-muted-foreground">
                 {t("settings.tagline")}
               </div>
+              {appInfo && (
+                <div className="mt-2 text-muted-foreground">
+                  {appInfo.edition === "community"
+                    ? "GNU General Public License v3"
+                    : "ProcessFox Store License"}
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>
