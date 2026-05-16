@@ -7,6 +7,8 @@ Versionsschema: [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-05-16
+
 ### Changed
 - **Kontext-Dokumente werden im Chat-Input verwaltet.** Der Block im
   „Agenten bearbeiten"-Modal ist entfallen; stattdessen erscheint links neben
