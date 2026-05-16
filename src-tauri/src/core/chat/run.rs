@@ -364,8 +364,11 @@ async fn react_loop(
             .await;
     }
 
-    let mut turns = history_to_turns(&history);
-    trim_history(&mut turns, HISTORY_WINDOW);
+    // The `chat-context` skill is now a real toggle: when off, the LLM only
+    // ever sees the latest user message — no prior turns at all. When on,
+    // the model gets up to HISTORY_WINDOW turns of prior context.
+    let chat_context_active = agent.skills.iter().any(|s| s == "chat-context");
+    let mut turns = select_initial_turns(&history, chat_context_active, HISTORY_WINDOW);
 
     // If any file the agent has read in this chat got modified or removed
     // externally since, prepend a one-line hint to this user turn so the LLM
@@ -384,15 +387,15 @@ async fn react_loop(
     }
 
     // Same idea for context documents: when the doc's read+result pair has
-    // dropped out of the trimmed window — or when the `chat-context` skill is
-    // off, so the model is told not to lean on earlier turns — the doc is
-    // functionally invisible. Nudge the LLM to re-read into the current turn.
-    let chat_context_active = agent.skills.iter().any(|s| s == "chat-context");
+    // dropped out of the trimmed history window, nudge the LLM to re-read
+    // into the current turn. The chat-context-off case is handled upstream
+    // by `select_initial_turns` — there's no window then, so every turn looks
+    // like a "first request" to the LLM, and the `## Attachments` system
+    // prompt block already instructs it to read the docs.
     let needs_reread = context_paths_needing_reread(
         &turns,
         &agent.attachments.context_paths,
         agent_folder.as_deref(),
-        chat_context_active,
     );
     if let Some(hint) = format_context_reread_hint(&needs_reread, agent_folder.as_deref()) {
         if let Some(last) = turns.last_mut() {
@@ -977,29 +980,55 @@ fn trim_history(turns: &mut Vec<ChatTurn>, window: usize) {
     }
 }
 
+/// Build the starting turn list for a new ReAct cycle from persisted history.
+/// When `chat-context` is active the full history is used (trimmed to the
+/// window with boundary healing); when it's off, only the trailing user
+/// message is passed through — the agent becomes effectively stateless
+/// between user turns. The runner persists the new user message before
+/// invoking this, so the "last user message" is the one we just received.
+fn select_initial_turns(
+    history: &[ChatMessage],
+    chat_context_active: bool,
+    window: usize,
+) -> Vec<ChatTurn> {
+    if chat_context_active {
+        let mut turns = history_to_turns(history);
+        trim_history(&mut turns, window);
+        return turns;
+    }
+    // History off: take only the trailing user message. By construction the
+    // runner just persisted it; if for any reason it's missing, return empty
+    // and let the provider raise a clearer error than us inventing a turn.
+    history
+        .iter()
+        .rev()
+        .find(|m| matches!(m.role, MessageRole::User))
+        .map(|m| {
+            vec![ChatTurn {
+                role: ChatRole::User,
+                content: m.content.clone(),
+                tool_calls: m.tool_calls.clone(),
+                tool_results: m.tool_results.clone(),
+            }]
+        })
+        .unwrap_or_default()
+}
+
 /// Returns the subset of `context_paths` that the model effectively cannot
-/// see in `turns`. Two failure modes are folded together here:
-/// - `chat-context` off → the model has been told not to reference earlier
-///   turns; any read in there is functionally invisible.
-/// - Read fell out of the trimmed history window.
-///
-/// The first turn of a conversation (no Assistant turn yet) is treated as a
-/// no-op because the `## Attachments` block in the system prompt already
-/// covers it.
+/// see in `turns` — i.e. the read+result pair dropped out of the trimmed
+/// history window. Skipped on the first turn of a conversation (no Assistant
+/// turn yet) because the `## Attachments` system-prompt block handles that
+/// case via its "read at the start of each conversation" instruction.
 fn context_paths_needing_reread(
     turns: &[ChatTurn],
     context_paths: &[std::path::PathBuf],
     agent_folder: Option<&std::path::Path>,
-    chat_context_active: bool,
 ) -> Vec<std::path::PathBuf> {
     if context_paths.is_empty() {
         return Vec::new();
     }
     if !turns.iter().any(|t| t.role == ChatRole::Assistant) {
         return Vec::new();
-    }
-    if !chat_context_active {
-        return context_paths.to_vec();
     }
     let read_paths = collect_successful_read_paths(turns, agent_folder);
     context_paths
@@ -1264,7 +1293,7 @@ mod tests {
     #[test]
     fn context_reread_empty_when_no_attachments() {
         let turns = vec![user("hi")];
-        let out = context_paths_needing_reread(&turns, &[], None, true);
+        let out = context_paths_needing_reread(&turns, &[], None);
         assert!(out.is_empty());
     }
 
@@ -1274,16 +1303,13 @@ mod tests {
         // initial read instruction. We must not double-hint.
         let turns = vec![user("first message")];
         let paths = vec![std::path::PathBuf::from("/folder/foo.md")];
-        let out = context_paths_needing_reread(&turns, &paths, None, true);
+        let out = context_paths_needing_reread(&turns, &paths, None);
         assert!(out.is_empty());
-
-        let out_off = context_paths_needing_reread(&turns, &paths, None, false);
-        assert!(out_off.is_empty());
     }
 
     #[test]
     fn context_reread_skipped_when_doc_read_in_window() {
-        // chat-context on; the doc was read and the result is in the window.
+        // The doc was read and the result is in the window.
         let turns = vec![
             user("question"),
             assistant_read("call_1", "/folder/foo.md"),
@@ -1292,38 +1318,22 @@ mod tests {
             user("follow up"),
         ];
         let paths = vec![std::path::PathBuf::from("/folder/foo.md")];
-        let out = context_paths_needing_reread(&turns, &paths, None, true);
+        let out = context_paths_needing_reread(&turns, &paths, None);
         assert!(out.is_empty());
     }
 
     #[test]
     fn context_reread_triggered_when_doc_dropped_from_window() {
-        // chat-context on; no read for foo.md in the trimmed window.
+        // No read for foo.md in the trimmed window.
         let turns = vec![
             user("question A"),
             assistant_text("answer A"),
             user("question B"),
         ];
         let paths = vec![std::path::PathBuf::from("/folder/foo.md")];
-        let out = context_paths_needing_reread(&turns, &paths, None, true);
+        let out = context_paths_needing_reread(&turns, &paths, None);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0], std::path::PathBuf::from("/folder/foo.md"));
-    }
-
-    #[test]
-    fn context_reread_triggered_when_chat_context_off_even_with_in_window_read() {
-        // Read is right there in the window, but chat-context is OFF so the
-        // model has been told not to use earlier turns.
-        let turns = vec![
-            user("question"),
-            assistant_read("call_1", "/folder/foo.md"),
-            tool_result("call_1", "content"),
-            assistant_text("done"),
-            user("follow up"),
-        ];
-        let paths = vec![std::path::PathBuf::from("/folder/foo.md")];
-        let out = context_paths_needing_reread(&turns, &paths, None, false);
-        assert_eq!(out.len(), 1);
     }
 
     #[test]
@@ -1340,7 +1350,7 @@ mod tests {
             std::path::PathBuf::from("/folder/foo.md"),
             std::path::PathBuf::from("/folder/bar.docx"),
         ];
-        let out = context_paths_needing_reread(&turns, &paths, None, true);
+        let out = context_paths_needing_reread(&turns, &paths, None);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0], std::path::PathBuf::from("/folder/bar.docx"));
     }
@@ -1356,7 +1366,7 @@ mod tests {
             user("next"),
         ];
         let paths = vec![std::path::PathBuf::from("/folder/foo.md")];
-        let out = context_paths_needing_reread(&turns, &paths, None, true);
+        let out = context_paths_needing_reread(&turns, &paths, None);
         assert_eq!(out.len(), 1);
     }
 
@@ -1381,8 +1391,91 @@ mod tests {
             user("retry"),
         ];
         let paths = vec![std::path::PathBuf::from("/folder/foo.md")];
-        let out = context_paths_needing_reread(&turns, &paths, None, true);
+        let out = context_paths_needing_reread(&turns, &paths, None);
         assert_eq!(out.len(), 1);
+    }
+
+    fn user_msg(content: &str) -> ChatMessage {
+        ChatMessage::new(MessageRole::User, content.to_string())
+    }
+
+    fn assistant_msg(content: &str) -> ChatMessage {
+        ChatMessage::new(MessageRole::Assistant, content.to_string())
+    }
+
+    fn tool_msg(use_id: &str, content: &str) -> ChatMessage {
+        let mut m = ChatMessage::new(MessageRole::Tool, String::new());
+        m.tool_results = vec![ToolResult {
+            tool_use_id: use_id.to_string(),
+            content: content.to_string(),
+            is_error: false,
+        }];
+        m
+    }
+
+    #[test]
+    fn select_initial_turns_with_chat_context_on_returns_full_trimmed_history() {
+        // 5 user turns, window of 10 → all 5 come through.
+        let history: Vec<ChatMessage> = (0..5).map(|i| user_msg(&format!("u{i}"))).collect();
+        let out = select_initial_turns(&history, true, 10);
+        assert_eq!(out.len(), 5);
+        assert_eq!(out[0].content, "u0");
+        assert_eq!(out[4].content, "u4");
+    }
+
+    #[test]
+    fn select_initial_turns_with_chat_context_on_applies_window() {
+        // 30 user turns, window of 5 → trim to last 5.
+        let history: Vec<ChatMessage> = (0..30).map(|i| user_msg(&format!("u{i}"))).collect();
+        let out = select_initial_turns(&history, true, 5);
+        assert_eq!(out.len(), 5);
+        assert_eq!(out[0].content, "u25");
+        assert_eq!(out[4].content, "u29");
+    }
+
+    #[test]
+    fn select_initial_turns_with_chat_context_off_keeps_only_last_user() {
+        // Mixed history; chat-context off → only the trailing user message.
+        let history = vec![
+            user_msg("old question"),
+            assistant_msg("old answer"),
+            tool_msg("call_1", "old tool result"),
+            user_msg("current question"),
+        ];
+        let out = select_initial_turns(&history, false, 20);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].role, ChatRole::User);
+        assert_eq!(out[0].content, "current question");
+    }
+
+    #[test]
+    fn select_initial_turns_with_chat_context_off_picks_trailing_user_not_assistant() {
+        // Defensive: if somehow the trailing entry is an assistant message
+        // (shouldn't happen in normal flow because start() persists the user
+        // message right before calling react_loop), we still rewind to the
+        // last user-role entry rather than returning an assistant turn.
+        let history = vec![
+            user_msg("the real question"),
+            assistant_msg("partial answer"),
+        ];
+        let out = select_initial_turns(&history, false, 20);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].role, ChatRole::User);
+        assert_eq!(out[0].content, "the real question");
+    }
+
+    #[test]
+    fn select_initial_turns_with_chat_context_off_empty_history_returns_empty() {
+        // No user message at all: don't invent one. Provider will surface
+        // a clearer error if it can't handle an empty request.
+        let history: Vec<ChatMessage> = Vec::new();
+        let out = select_initial_turns(&history, false, 20);
+        assert!(out.is_empty());
+
+        // Same outcome with only assistant turns (degenerate state).
+        let history = vec![assistant_msg("hi")];
+        let out = select_initial_turns(&history, false, 20);
+        assert!(out.is_empty());
     }
 
     #[test]

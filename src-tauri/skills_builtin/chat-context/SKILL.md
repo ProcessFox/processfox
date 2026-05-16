@@ -1,7 +1,7 @@
 ---
 name: chat-context
 title: Gesprächskontext nutzen
-description: Use earlier turns of this conversation as context. Activate when the user is having a multi-turn discussion or refers back to something said before.
+description: Pass the previous turns of this conversation to the model. When off, the model only ever sees your latest message — useful for stateless tasks (translation, single-shot Q&A) and to keep token cost flat in long sessions. When on, the model can refer back to earlier turns.
 icon: MessagesSquare
 tools: []
 hitl:

@@ -14,15 +14,22 @@ Versionsschema: [Semantic Versioning](https://semver.org/lang/de/).
   der Liste der angehängten Docs und „Dokument hinzufügen" öffnet. Mehrere
   Dokumente werden direkt im Picker oder durch wiederholtes Hinzufügen
   ergänzt; Einzelentfernen via X-Button im Popover.
+- **Skill `chat-context` ist jetzt ein echter History-Toggle.** Bisher
+  beeinflusste der Skill nur einen Hinweis im System-Prompt, der Verlauf
+  wurde immer mitgeschickt. Ab v0.1.1 gilt: **Skill aus → kein Verlauf,
+  nur die aktuelle User-Nachricht** an das LLM. Nützlich für stateless-Tasks
+  (Übersetzung, einmalige Q&A) und konstante Token-Kosten in langen
+  Sitzungen. Skill an → wie bisher die letzten 20 Turns. Beachten: Agenten,
+  bei denen der Skill explizit aus war, verlieren mit diesem Update den
+  bisherigen impliziten Verlauf; einfach den Skill aktivieren, wenn das
+  unerwünscht ist.
 
 ### Improved
 - **Auto-Re-Read von Kontext-Dokumenten:** Wenn ein angehängtes Dokument
   durch das History-Window-Trimming (max. 20 Turns) aus dem LLM-sichtbaren
-  Verlauf gefallen ist — oder wenn der Skill `chat-context` deaktiviert ist
-  und das Modell ältere Turns ohnehin nicht referenzieren soll — bekommt
-  das LLM jetzt vor der Antwort einen kurzen Hinweis, die betroffenen Docs
-  erneut zu lesen. Verhindert „Halluzinationen aus dem Gedächtnis" bei
-  langen Konversationen und in stateless-artigen Modi.
+  Verlauf gefallen ist, bekommt das LLM jetzt vor der Antwort einen kurzen
+  Hinweis, die betroffenen Docs erneut zu lesen. Verhindert
+  „Halluzinationen aus dem Gedächtnis" bei langen Konversationen.
 
 ### Fixed
 - **macOS:** Bei unsignierten Builds wirft macOS „ProcessFox ist beschädigt"
