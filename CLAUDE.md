@@ -295,12 +295,16 @@ Zusätzlich: Symlink-Escape-Prävention durch `canonicalize`; Denylist für spez
 
 ## 12. Release-Prozess (Kurz)
 
+Laufende Änderungen werden in [`CHANGELOG.md`](CHANGELOG.md) unter `## [Unreleased]` mitgeschrieben — beim Release wird dieser Block einfach in den neuen Versionsabschnitt umbenannt und dient direkt als Release-Notes.
+
 1. Alle Akzeptanzkriterien der aktuellen Phase (Roadmap unter `https://www.processfox.ai/docs/entwickler/roadmap/`) sind erfüllt.
-2. Version in `package.json` und `src-tauri/tauri.conf.json` bumpen und auf `main` mergen.
-3. Auf GitHub → Actions → "Release" → **"Run workflow"** klicken (`workflow_dispatch`).
-4. GitHub Actions baut auf drei Plattformen (macOS ARM, Linux x64, Windows x64). Die `tauri-action` erstellt automatisch den Tag `v<VERSION>` und ein **Draft-Release** mit den Build-Artefakten.
-5. Draft-Release auf GitHub öffnen, Release-Notes ergänzen (was ist neu, was ist bekannt fehlerhaft), dann **"Publish release"** klicken.
-6. Für Store-Versionen: neue Builds über die jeweiligen Store-Portale einreichen (Apple App Store Connect, Microsoft Partner Center). Auto-Updates laufen über den Store-Mechanismus — kein eigener Updater nötig.
+2. Version in `package.json` und `src-tauri/tauri.conf.json` bumpen.
+3. In `CHANGELOG.md` den `## [Unreleased]`-Block in `## [<version>] — <YYYY-MM-DD>` umbenennen und einen neuen leeren `## [Unreleased]`-Block oben einfügen.
+4. Schritte 2–3 auf `main` mergen.
+5. Auf GitHub → Actions → "Release" → **"Run workflow"** klicken (`workflow_dispatch`).
+6. GitHub Actions baut auf drei Plattformen (macOS ARM, Linux x64, Windows x64). Die `tauri-action` erstellt automatisch den Tag `v<VERSION>` und ein **Draft-Release** mit den Build-Artefakten.
+7. Draft-Release auf GitHub öffnen, den frisch umbenannten CHANGELOG-Block als Release-Notes übernehmen (ggf. um Download-Hinweise und macOS-Quarantäne-Workaround ergänzen), dann **"Publish release"** klicken.
+8. Für Store-Versionen: neue Builds über die jeweiligen Store-Portale einreichen (Apple App Store Connect, Microsoft Partner Center). Auto-Updates laufen über den Store-Mechanismus — kein eigener Updater nötig.
 
 ---
 
