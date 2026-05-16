@@ -383,6 +383,28 @@ async fn react_loop(
         }
     }
 
+    // Same idea for context documents: when the doc's read+result pair has
+    // dropped out of the trimmed window — or when the `chat-context` skill is
+    // off, so the model is told not to lean on earlier turns — the doc is
+    // functionally invisible. Nudge the LLM to re-read into the current turn.
+    let chat_context_active = agent.skills.iter().any(|s| s == "chat-context");
+    let needs_reread = context_paths_needing_reread(
+        &turns,
+        &agent.attachments.context_paths,
+        agent_folder.as_deref(),
+        chat_context_active,
+    );
+    if let Some(hint) = format_context_reread_hint(&needs_reread, agent_folder.as_deref()) {
+        if let Some(last) = turns.last_mut() {
+            if last.role == ChatRole::User
+                && last.tool_results.is_empty()
+                && last.tool_calls.is_empty()
+            {
+                last.content = format!("{hint}\n\n{}", last.content);
+            }
+        }
+    }
+
     let mut run_totals = TokenUsage::default();
     let mut run_totals_seen = false;
 
@@ -955,6 +977,113 @@ fn trim_history(turns: &mut Vec<ChatTurn>, window: usize) {
     }
 }
 
+/// Returns the subset of `context_paths` that the model effectively cannot
+/// see in `turns`. Two failure modes are folded together here:
+/// - `chat-context` off → the model has been told not to reference earlier
+///   turns; any read in there is functionally invisible.
+/// - Read fell out of the trimmed history window.
+///
+/// The first turn of a conversation (no Assistant turn yet) is treated as a
+/// no-op because the `## Attachments` block in the system prompt already
+/// covers it.
+fn context_paths_needing_reread(
+    turns: &[ChatTurn],
+    context_paths: &[std::path::PathBuf],
+    agent_folder: Option<&std::path::Path>,
+    chat_context_active: bool,
+) -> Vec<std::path::PathBuf> {
+    if context_paths.is_empty() {
+        return Vec::new();
+    }
+    if !turns.iter().any(|t| t.role == ChatRole::Assistant) {
+        return Vec::new();
+    }
+    if !chat_context_active {
+        return context_paths.to_vec();
+    }
+    let read_paths = collect_successful_read_paths(turns, agent_folder);
+    context_paths
+        .iter()
+        .filter(|p| !read_paths.iter().any(|r| paths_equivalent(r, p)))
+        .cloned()
+        .collect()
+}
+
+/// Walk the turn list and collect the absolute paths of all successful
+/// content-read tool calls — only those whose matching `tool_result` is also
+/// present in the window and not flagged as error.
+fn collect_successful_read_paths(
+    turns: &[ChatTurn],
+    agent_folder: Option<&std::path::Path>,
+) -> Vec<std::path::PathBuf> {
+    let mut id_to_path: HashMap<String, std::path::PathBuf> = HashMap::new();
+    for t in turns {
+        for call in &t.tool_calls {
+            if !is_content_read_tool(&call.name) {
+                continue;
+            }
+            let Some(rel) = call.arguments.get("path").and_then(|v| v.as_str()) else {
+                continue;
+            };
+            let pb = std::path::PathBuf::from(rel);
+            let abs = if pb.is_absolute() {
+                pb
+            } else if let Some(folder) = agent_folder {
+                folder.join(&pb)
+            } else {
+                pb
+            };
+            id_to_path.insert(call.id.clone(), abs);
+        }
+    }
+    let mut out = Vec::new();
+    for t in turns {
+        for r in &t.tool_results {
+            if r.is_error {
+                continue;
+            }
+            if let Some(p) = id_to_path.get(&r.tool_use_id) {
+                out.push(p.clone());
+            }
+        }
+    }
+    out
+}
+
+fn paths_equivalent(a: &std::path::Path, b: &std::path::Path) -> bool {
+    if a == b {
+        return true;
+    }
+    match (a.canonicalize(), b.canonicalize()) {
+        (Ok(ca), Ok(cb)) => ca == cb,
+        _ => false,
+    }
+}
+
+/// One-line German hint prepended to a user turn when context documents need
+/// to be re-read this turn. Mirrors the freshness hint in tone and placement
+/// so the model treats them as the same class of nudge.
+fn format_context_reread_hint(
+    paths: &[std::path::PathBuf],
+    agent_folder: Option<&std::path::Path>,
+) -> Option<String> {
+    if paths.is_empty() {
+        return None;
+    }
+    let folder_canon = agent_folder.and_then(|p| p.canonicalize().ok());
+    let render = |p: &std::path::Path| -> String {
+        match &folder_canon {
+            Some(root) => p.strip_prefix(root).unwrap_or(p).display().to_string(),
+            None => p.display().to_string(),
+        }
+    };
+    let names: Vec<String> = paths.iter().map(|p| format!("`{}`", render(p))).collect();
+    Some(format!(
+        "[Hinweis: Diese Kontext-Dokumente sind nicht (mehr) in deinem aktuellen Verlauf — bitte lese sie vor deiner Antwort mit dem passenden Read-Tool erneut: {}.]",
+        names.join(", ")
+    ))
+}
+
 /// Build the one-line German hint to prepend to a user turn when files the
 /// agent previously read are now stale. Returns `None` if the stale list is
 /// empty so callers can no-op cleanly. `agent_folder`, when provided, is
@@ -1117,5 +1246,159 @@ mod tests {
         assert_eq!(turns.len(), 5);
         assert_eq!(turns[0].content, "u25");
         assert_eq!(turns[4].content, "u29");
+    }
+
+    fn assistant_read(id: &str, path: &str) -> ChatTurn {
+        ChatTurn {
+            role: ChatRole::Assistant,
+            content: String::new(),
+            tool_calls: vec![ToolCall {
+                id: id.to_string(),
+                name: "read_file".to_string(),
+                arguments: serde_json::json!({ "path": path }),
+            }],
+            tool_results: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn context_reread_empty_when_no_attachments() {
+        let turns = vec![user("hi")];
+        let out = context_paths_needing_reread(&turns, &[], None, true);
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn context_reread_skips_on_first_turn() {
+        // No Assistant turn yet — system prompt's ## Attachments handles the
+        // initial read instruction. We must not double-hint.
+        let turns = vec![user("first message")];
+        let paths = vec![std::path::PathBuf::from("/folder/foo.md")];
+        let out = context_paths_needing_reread(&turns, &paths, None, true);
+        assert!(out.is_empty());
+
+        let out_off = context_paths_needing_reread(&turns, &paths, None, false);
+        assert!(out_off.is_empty());
+    }
+
+    #[test]
+    fn context_reread_skipped_when_doc_read_in_window() {
+        // chat-context on; the doc was read and the result is in the window.
+        let turns = vec![
+            user("question"),
+            assistant_read("call_1", "/folder/foo.md"),
+            tool_result("call_1", "--- foo.md ---\nhello"),
+            assistant_text("done"),
+            user("follow up"),
+        ];
+        let paths = vec![std::path::PathBuf::from("/folder/foo.md")];
+        let out = context_paths_needing_reread(&turns, &paths, None, true);
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn context_reread_triggered_when_doc_dropped_from_window() {
+        // chat-context on; no read for foo.md in the trimmed window.
+        let turns = vec![
+            user("question A"),
+            assistant_text("answer A"),
+            user("question B"),
+        ];
+        let paths = vec![std::path::PathBuf::from("/folder/foo.md")];
+        let out = context_paths_needing_reread(&turns, &paths, None, true);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0], std::path::PathBuf::from("/folder/foo.md"));
+    }
+
+    #[test]
+    fn context_reread_triggered_when_chat_context_off_even_with_in_window_read() {
+        // Read is right there in the window, but chat-context is OFF so the
+        // model has been told not to use earlier turns.
+        let turns = vec![
+            user("question"),
+            assistant_read("call_1", "/folder/foo.md"),
+            tool_result("call_1", "content"),
+            assistant_text("done"),
+            user("follow up"),
+        ];
+        let paths = vec![std::path::PathBuf::from("/folder/foo.md")];
+        let out = context_paths_needing_reread(&turns, &paths, None, false);
+        assert_eq!(out.len(), 1);
+    }
+
+    #[test]
+    fn context_reread_per_path_granularity() {
+        // foo.md was read in-window, bar.docx was not. Only bar.docx fires.
+        let turns = vec![
+            user("question"),
+            assistant_read("call_1", "/folder/foo.md"),
+            tool_result("call_1", "content"),
+            assistant_text("partial"),
+            user("more"),
+        ];
+        let paths = vec![
+            std::path::PathBuf::from("/folder/foo.md"),
+            std::path::PathBuf::from("/folder/bar.docx"),
+        ];
+        let out = context_paths_needing_reread(&turns, &paths, None, true);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0], std::path::PathBuf::from("/folder/bar.docx"));
+    }
+
+    #[test]
+    fn context_reread_orphan_tool_result_does_not_satisfy() {
+        // Tool result for foo.md is in the window, but the matching tool_use
+        // got dropped (boundary corruption). The read pair is broken — must
+        // hint to re-read.
+        let turns = vec![
+            tool_result("call_1", "stale content"),
+            assistant_text("ok"),
+            user("next"),
+        ];
+        let paths = vec![std::path::PathBuf::from("/folder/foo.md")];
+        let out = context_paths_needing_reread(&turns, &paths, None, true);
+        assert_eq!(out.len(), 1);
+    }
+
+    #[test]
+    fn context_reread_error_result_does_not_satisfy() {
+        // The model called read_file but it failed (error result). Doesn't
+        // count as a successful read — must re-read.
+        let turns = vec![
+            user("question"),
+            assistant_read("call_1", "/folder/foo.md"),
+            ChatTurn {
+                role: ChatRole::User,
+                content: String::new(),
+                tool_calls: Vec::new(),
+                tool_results: vec![ToolResult {
+                    tool_use_id: "call_1".to_string(),
+                    content: "tool error: not found".to_string(),
+                    is_error: true,
+                }],
+            },
+            assistant_text("oops"),
+            user("retry"),
+        ];
+        let paths = vec![std::path::PathBuf::from("/folder/foo.md")];
+        let out = context_paths_needing_reread(&turns, &paths, None, true);
+        assert_eq!(out.len(), 1);
+    }
+
+    #[test]
+    fn context_reread_hint_renders_paths_relative_to_folder() {
+        // When agent_folder is provided and canonicalize works, paths render
+        // as relative. With non-existent absolute paths (test fixtures), they
+        // fall through to the absolute display — both forms are acceptable
+        // for the hint, so we just check the marker tokens appear.
+        let paths = vec![std::path::PathBuf::from("/folder/foo.md")];
+        let hint = format_context_reread_hint(&paths, None).expect("hint");
+        assert!(hint.contains("foo.md"));
+        assert!(hint.contains("nicht (mehr) in deinem aktuellen Verlauf"));
+    }
+
+    #[test]
+    fn context_reread_hint_empty_returns_none() {
+        assert!(format_context_reread_hint(&[], None).is_none());
     }
 }

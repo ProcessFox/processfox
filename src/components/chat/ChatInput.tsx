@@ -1,9 +1,14 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
-import { ArrowUp, FileStack } from "lucide-react";
+import { ArrowUp, BookOpen, FileStack, Plus, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -37,6 +42,7 @@ type Props = {
 
 const ATTACHMENT_EXTENSIONS: Record<string, string[]> = {
   template: ["docx"],
+  context: ["md", "txt", "csv", "json", "docx", "pdf", "xlsx"],
 };
 
 export function ChatInput({
@@ -76,8 +82,12 @@ export function ChatInput({
     }
   }
 
-  const visibleSlots = (acceptsAttachments ?? []).filter(
-    (k): k is AttachmentKind => k in ATTACHMENT_EXTENSIONS,
+  // Render template left, context right, regardless of skill-list order so the
+  // icon row stays stable when users toggle skills.
+  const slotOrder: AttachmentKind[] = ["template", "context"];
+  const acceptsSet = new Set(acceptsAttachments ?? []);
+  const visibleSlots = slotOrder.filter(
+    (k) => acceptsSet.has(k) && k in ATTACHMENT_EXTENSIONS,
   );
 
   return (
@@ -101,14 +111,21 @@ export function ChatInput({
         />
         {visibleSlots.length > 0 && agent && (
           <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
-            {visibleSlots.map((kind) => (
-              <AttachmentButton
-                key={kind}
-                kind={kind}
-                agent={agent}
-                onAgentUpdated={onAgentUpdated}
-              />
-            ))}
+            {visibleSlots.map((kind) =>
+              kind === "context" ? (
+                <ContextAttachmentButton
+                  key={kind}
+                  agent={agent}
+                  onAgentUpdated={onAgentUpdated}
+                />
+              ) : (
+                <TemplateAttachmentButton
+                  key={kind}
+                  agent={agent}
+                  onAgentUpdated={onAgentUpdated}
+                />
+              ),
+            )}
           </div>
         )}
         <Button
@@ -145,32 +162,29 @@ export function ChatInput({
   );
 }
 
-function attachmentPath(agent: Agent, kind: AttachmentKind): string | null {
-  switch (kind) {
-    case "template":
-      return agent.attachments.templatePath ?? null;
-    case "context":
-      return null;
-  }
+// Ghost variant on the left, distinct from the filled primary Send button on
+// the right. Tone: warning (amber) when the slot is unset — gentle nudge that
+// the agent still expects something; muted-foreground when satisfied.
+function attachmentTone(filled: boolean): string {
+  return filled
+    ? "text-muted-foreground bg-muted hover:bg-accent/60"
+    : "text-warning bg-warning/10 hover:bg-warning/20";
 }
 
-function AttachmentButton({
-  kind,
+function TemplateAttachmentButton({
   agent,
   onAgentUpdated,
 }: {
-  kind: AttachmentKind;
   agent: Agent;
   onAgentUpdated?: (agent: Agent) => void;
 }) {
   const { t } = useTranslation();
-  const extensions = ATTACHMENT_EXTENSIONS[kind];
-  if (!extensions) return null;
+  const extensions = ATTACHMENT_EXTENSIONS.template!;
   const label = t("chatInput.template");
   const dialogTitle = t("chatInput.chooseTemplate");
-  const current = attachmentPath(agent, kind);
+  const current = agent.attachments.templatePath ?? null;
   const hasAttachment = current !== null;
-  const fileName = current ? current.split(/[/\\]/).pop() : null;
+  const fileName = current ? (current.split(/[/\\]/).pop() ?? current) : null;
 
   async function handlePick() {
     try {
@@ -182,7 +196,7 @@ function AttachmentButton({
         filters: [{ name: label, extensions }],
       });
       if (typeof picked !== "string") return;
-      const updated = await agentApi.setAttachment(agent.id, kind, picked);
+      const updated = await agentApi.setAttachment(agent.id, "template", picked);
       onAgentUpdated?.(updated);
     } catch (e) {
       // Backend rejects paths outside the agent folder; show inline log only —
@@ -191,15 +205,7 @@ function AttachmentButton({
     }
   }
 
-  // Ghost variant on the left, distinct from the filled primary Send button
-  // on the right. Color: warning (amber, with a soft tint) when no path is set
-  // or after auto-clear, muted-foreground when valid.
-  const tone = hasAttachment
-    ? "text-muted-foreground bg-muted hover:bg-accent/60"
-    : "text-warning bg-warning/10 hover:bg-warning/20";
-  const tooltipText = hasAttachment
-    ? `${label}: ${fileName}`
-    : dialogTitle;
+  const tooltipText = hasAttachment ? `${label}: ${fileName}` : dialogTitle;
 
   return (
     <Tooltip>
@@ -208,12 +214,124 @@ function AttachmentButton({
           type="button"
           onClick={handlePick}
           aria-label={tooltipText}
-          className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${tone}`}
+          className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${attachmentTone(hasAttachment)}`}
         >
           <FileStack className="h-3.5 w-3.5" />
         </button>
       </TooltipTrigger>
       <TooltipContent side="top">{tooltipText}</TooltipContent>
     </Tooltip>
+  );
+}
+
+function ContextAttachmentButton({
+  agent,
+  onAgentUpdated,
+}: {
+  agent: Agent;
+  onAgentUpdated?: (agent: Agent) => void;
+}) {
+  const { t } = useTranslation();
+  const extensions = ATTACHMENT_EXTENSIONS.context!;
+  const label = t("chatInput.contextDocs");
+  const paths = agent.attachments.contextPaths ?? [];
+  const hasAttachment = paths.length > 0;
+
+  async function handleAdd() {
+    try {
+      const picked = await open({
+        directory: false,
+        multiple: true,
+        title: t("chatInput.addDocument"),
+        defaultPath: agent.folder ?? undefined,
+        filters: [{ name: label, extensions }],
+      });
+      if (!picked) return;
+      const list = Array.isArray(picked) ? picked : [picked];
+      let latest: Agent = agent;
+      for (const p of list) {
+        latest = await agentApi.setAttachment(agent.id, "context", p);
+      }
+      onAgentUpdated?.(latest);
+    } catch (e) {
+      console.warn("context attach pick failed", e);
+    }
+  }
+
+  async function handleRemove(path: string) {
+    try {
+      const updated = await agentApi.removeContextPath(agent.id, path);
+      onAgentUpdated?.(updated);
+    } catch (e) {
+      console.warn("context remove failed", e);
+    }
+  }
+
+  const tooltipText = hasAttachment
+    ? paths.length === 1
+      ? `${label}: ${paths[0]!.split(/[/\\]/).pop() ?? paths[0]!}`
+      : `${label} (${paths.length})`
+    : label;
+
+  return (
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={tooltipText}
+              className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${attachmentTone(hasAttachment)}`}
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+            </button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="top">{tooltipText}</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent side="top" align="start" className="w-72 p-2">
+        <div className="mb-1 px-1 text-xs font-medium">{label}</div>
+        {paths.length === 0 ? (
+          <div className="px-1 py-1 text-xs text-muted-foreground">
+            {t("chatInput.contextDocsEmpty")}
+          </div>
+        ) : (
+          <div className="mb-2 flex flex-col gap-0.5">
+            {paths.map((p) => {
+              const fileName = p.split(/[/\\]/).pop() ?? p;
+              return (
+                <div
+                  key={p}
+                  className="flex items-center gap-1.5 rounded-sm px-1.5 py-1 hover:bg-accent/40"
+                  title={p}
+                >
+                  <span className="min-w-0 flex-1 truncate text-xs">
+                    {fileName}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(p)}
+                    aria-label={t("chatInput.removeDocument")}
+                    className="shrink-0 rounded-sm p-0.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="w-full gap-1.5"
+          onClick={handleAdd}
+        >
+          <Plus className="h-3 w-3" />
+          {t("chatInput.addDocument")}
+        </Button>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

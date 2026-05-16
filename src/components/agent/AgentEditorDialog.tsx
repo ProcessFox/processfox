@@ -1,5 +1,5 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { Folder, Plus, Wrench, X } from "lucide-react";
+import { Folder, Wrench } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -206,7 +206,6 @@ export function AgentEditorDialog({
   const [delegationSelection, setDelegationSelection] = useState<ModelSelection>(
     { kind: "inherit" },
   );
-  const [contextPaths, setContextPaths] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -231,7 +230,6 @@ export function AgentEditorDialog({
       setSelection(modelRefToSelection(agent.model));
       setActiveSkills(agent.skills);
       setHitlDisabled(agent.hitlDisabled);
-      setContextPaths(agent.attachments?.contextPaths ?? []);
       const dp = agent.delegationProfile;
       setDelegationEnabled(dp?.enabled ?? false);
       setDelegationSystemPrompt(dp?.systemPromptOverride ?? "");
@@ -244,7 +242,6 @@ export function AgentEditorDialog({
       setSelection({ kind: "inherit" });
       setActiveSkills([]);
       setHitlDisabled(false);
-      setContextPaths([]);
       setDelegationEnabled(false);
       setDelegationSystemPrompt("");
       setDelegationSelection({ kind: "inherit" });
@@ -304,12 +301,6 @@ export function AgentEditorDialog({
               hitlDisabled,
               delegationProfile,
             });
-      if (activeSkills.includes("context-document-read")) {
-        await agentApi.setAttachment(saved.id, "context", null);
-        for (const p of contextPaths) {
-          await agentApi.setAttachment(saved.id, "context", p);
-        }
-      }
       const refreshed = await agentApi.get(saved.id);
       onSaved(refreshed);
       onClose();
@@ -447,76 +438,6 @@ export function AgentEditorDialog({
               </div>
             )}
           </div>
-
-          {activeSkills.includes("context-document-read") && (
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-xs">{t("agent.contextDocuments")}</Label>
-              <div className="flex flex-col gap-1 rounded-md border border-border bg-background p-2">
-                {contextPaths.length === 0 && (
-                  <div className="px-1 py-0.5 text-xs text-muted-foreground">
-                    {t("agent.noContextDocs")}
-                  </div>
-                )}
-                {contextPaths.map((p) => {
-                  const fileName = p.split(/[/\\]/).pop() ?? p;
-                  return (
-                    <div
-                      key={p}
-                      className="flex items-center gap-1.5 rounded-sm px-1.5 py-1 hover:bg-accent/40"
-                      title={p}
-                    >
-                      <span className="min-w-0 flex-1 truncate text-xs">
-                        {fileName}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setContextPaths((prev) =>
-                            prev.filter((x) => x !== p),
-                          )
-                        }
-                        className="shrink-0 rounded-sm p-0.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  );
-                })}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-1 gap-1.5 self-start"
-                  disabled={!folder}
-                  onClick={async () => {
-                    try {
-                      const picked = await open({
-                        multiple: true,
-                        defaultPath: folder ?? undefined,
-                      });
-                      if (!picked) return;
-                      const paths = Array.isArray(picked) ? picked : [picked];
-                      setContextPaths((prev) => {
-                        const set = new Set(prev);
-                        for (const p of paths) set.add(p);
-                        return [...set];
-                      });
-                    } catch (e) {
-                      setError(String(e));
-                    }
-                  }}
-                >
-                  <Plus className="h-3 w-3" />
-                  {t("common.add")}
-                </Button>
-                {!folder && (
-                  <div className="px-1 text-[10px] text-muted-foreground">
-                    {t("agent.chooseFolderFirst")}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-background p-2">
             <input

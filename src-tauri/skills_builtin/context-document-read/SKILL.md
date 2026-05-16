@@ -4,6 +4,8 @@ title: Kontext-Dokumente
 description: Automatically read the agent's context documents before processing any user request. Use this when the user has attached reference files (company info, customer lists, style guides) that should inform every response.
 icon: BookOpen
 tools: [read_file, read_docx, read_pdf, read_xlsx_range]
+accepts_attachments:
+  - context
 hitl:
   default: false
 language: en

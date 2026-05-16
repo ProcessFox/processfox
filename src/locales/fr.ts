@@ -64,9 +64,6 @@ const translations: Record<string, string> = {
   "agent.noDefaultModel": `pas de modèle par défaut`,
   "agent.skills": `Skills`,
   "agent.noSkills": `Aucun skill disponible.`,
-  "agent.contextDocuments": `Documents de contexte`,
-  "agent.noContextDocs": `Aucun document de contexte enregistré.`,
-  "agent.chooseFolderFirst": `Choisissez d'abord un dossier pour l'agent.`,
   "agent.hitlDisabledTitle": `Écriture sans confirmation`,
   "agent.hitlDisabledDesc": `Les outils d'écriture s'exécutent immédiatement — la boîte de dialogue de validation est ignorée. Attention : à n'utiliser que pour les agents auxquels vous faites confiance pour travailler de manière autonome dans « leur » dossier.`,
   "agent.delegationTitle": `Worker en arrière-plan (Bêta)`,
@@ -215,6 +212,10 @@ const translations: Record<string, string> = {
 
   "chatInput.template": `Modèle`,
   "chatInput.chooseTemplate": `Choisir un modèle`,
+  "chatInput.contextDocs": `Documents de contexte`,
+  "chatInput.contextDocsEmpty": `Aucun document joint.`,
+  "chatInput.addDocument": `Ajouter un document`,
+  "chatInput.removeDocument": `Retirer`,
 
   "starter.folderSearch1": `Quels fichiers du dossier contiennent le mot « contrat » ?`,
   "starter.folderSearch2": `Liste tous les PDF du dossier.`,

@@ -64,9 +64,6 @@ const translations: Record<string, string> = {
   "agent.noDefaultModel": `nessun modello predefinito`,
   "agent.skills": `Skill`,
   "agent.noSkills": `Nessuno skill disponibile.`,
-  "agent.contextDocuments": `Documenti di contesto`,
-  "agent.noContextDocs": `Nessun documento di contesto inserito finora.`,
-  "agent.chooseFolderFirst": `Prima seleziona una cartella per l'agente.`,
   "agent.hitlDisabledTitle": `Scrittura senza conferma`,
   "agent.hitlDisabledDesc": `Gli strumenti di scrittura vengono eseguiti immediatamente — la finestra di approvazione viene saltata. Attenzione: usa solo per agenti di cui ti fidi per il lavoro autonomo nella „loro" cartella.`,
   "agent.delegationTitle": `Worker in background (Beta)`,
@@ -215,6 +212,10 @@ const translations: Record<string, string> = {
 
   "chatInput.template": `Modello`,
   "chatInput.chooseTemplate": `Scegli modello`,
+  "chatInput.contextDocs": `Documenti di contesto`,
+  "chatInput.contextDocsEmpty": `Nessun documento allegato.`,
+  "chatInput.addDocument": `Aggiungi documento`,
+  "chatInput.removeDocument": `Rimuovi`,
 
   "starter.folderSearch1": `Quali file nella cartella contengono la parola „contratto"?`,
   "starter.folderSearch2": `Elenca tutti i PDF nella cartella.`,

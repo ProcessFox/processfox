@@ -64,9 +64,6 @@ const translations: Record<string, string> = {
   "agent.noDefaultModel": `no default model`,
   "agent.skills": `Skills`,
   "agent.noSkills": `No skills available.`,
-  "agent.contextDocuments": `Context documents`,
-  "agent.noContextDocs": `No context documents added yet.`,
-  "agent.chooseFolderFirst": `Choose a folder for the agent first.`,
   "agent.hitlDisabledTitle": `Write without confirmation`,
   "agent.hitlDisabledDesc": `Write tools run immediately — the approval dialog is skipped. Caution: only use for agents you trust to work independently in their folder.`,
   "agent.delegationTitle": `Background worker (Beta)`,
@@ -215,6 +212,10 @@ const translations: Record<string, string> = {
 
   "chatInput.template": `Template`,
   "chatInput.chooseTemplate": `Choose template`,
+  "chatInput.contextDocs": `Context documents`,
+  "chatInput.contextDocsEmpty": `No documents attached yet.`,
+  "chatInput.addDocument": `Add document`,
+  "chatInput.removeDocument": `Remove`,
 
   "starter.folderSearch1": `Which files in the folder contain the word "contract"?`,
   "starter.folderSearch2": `List all PDFs in the folder.`,

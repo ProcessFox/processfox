@@ -7,6 +7,23 @@ Versionsschema: [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Changed
+- **Kontext-Dokumente werden im Chat-Input verwaltet.** Der Block im
+  „Agenten bearbeiten"-Modal ist entfallen; stattdessen erscheint links neben
+  dem Vorlage-Icon ein eigenes Buch-Icon (`BookOpen`), das ein Popover mit
+  der Liste der angehängten Docs und „Dokument hinzufügen" öffnet. Mehrere
+  Dokumente werden direkt im Picker oder durch wiederholtes Hinzufügen
+  ergänzt; Einzelentfernen via X-Button im Popover.
+
+### Improved
+- **Auto-Re-Read von Kontext-Dokumenten:** Wenn ein angehängtes Dokument
+  durch das History-Window-Trimming (max. 20 Turns) aus dem LLM-sichtbaren
+  Verlauf gefallen ist — oder wenn der Skill `chat-context` deaktiviert ist
+  und das Modell ältere Turns ohnehin nicht referenzieren soll — bekommt
+  das LLM jetzt vor der Antwort einen kurzen Hinweis, die betroffenen Docs
+  erneut zu lesen. Verhindert „Halluzinationen aus dem Gedächtnis" bei
+  langen Konversationen und in stateless-artigen Modi.
+
 ### Fixed
 - **macOS:** Bei unsignierten Builds wirft macOS „ProcessFox ist beschädigt"
   statt des erwarteten Gatekeeper-Dialogs („nicht identifizierter Entwickler").

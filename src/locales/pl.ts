@@ -66,9 +66,6 @@ const translations: Record<string, string> = {
   "agent.noDefaultModel": `brak domyślnego modelu`,
   "agent.skills": `Umiejętności`,
   "agent.noSkills": `Brak dostępnych umiejętności.`,
-  "agent.contextDocuments": `Dokumenty kontekstowe`,
-  "agent.noContextDocs": `Nie dodano jeszcze dokumentów kontekstowych.`,
-  "agent.chooseFolderFirst": `Najpierw wybierz folder dla agenta.`,
   "agent.hitlDisabledTitle": `Zapis bez potwierdzenia`,
   "agent.hitlDisabledDesc": `Narzędzia zapisu działają natychmiast — okno zatwierdzenia jest pomijane. Uwaga: używaj tylko dla agentów, którym ufasz, że będą samodzielnie pracować w „swoim" folderze.`,
   "agent.delegationTitle": `Worker w tle (Beta)`,
@@ -237,6 +234,10 @@ const translations: Record<string, string> = {
 
   "chatInput.template": `Szablon`,
   "chatInput.chooseTemplate": `Wybierz szablon`,
+  "chatInput.contextDocs": `Dokumenty kontekstowe`,
+  "chatInput.contextDocsEmpty": `Brak załączonych dokumentów.`,
+  "chatInput.addDocument": `Dodaj dokument`,
+  "chatInput.removeDocument": `Usuń`,
 
   "starter.folderSearch1": `Które pliki w folderze zawierają słowo „umowa"?`,
   "starter.folderSearch2": `Wyświetl wszystkie pliki PDF w folderze.`,

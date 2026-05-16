@@ -64,9 +64,6 @@ const translations: Record<string, string> = {
   "agent.noDefaultModel": `kein Default-Modell`,
   "agent.skills": `Skills`,
   "agent.noSkills": `Keine Skills verfügbar.`,
-  "agent.contextDocuments": `Kontext-Dokumente`,
-  "agent.noContextDocs": `Noch keine Kontext-Dokumente hinterlegt.`,
-  "agent.chooseFolderFirst": `Zuerst einen Ordner für den Agenten wählen.`,
   "agent.hitlDisabledTitle": `Schreiben ohne Rückfrage`,
   "agent.hitlDisabledDesc": `Schreib-Tools laufen sofort durch — der Freigabe-Dialog wird übersprungen. Vorsicht: nur für Agenten verwenden, denen du das eigenständige Arbeiten in „ihrem“ Ordner zutraust.`,
   "agent.delegationTitle": `Hintergrund-Worker (Beta)`,
@@ -215,6 +212,10 @@ const translations: Record<string, string> = {
 
   "chatInput.template": `Vorlage`,
   "chatInput.chooseTemplate": `Vorlage wählen`,
+  "chatInput.contextDocs": `Kontext-Dokumente`,
+  "chatInput.contextDocsEmpty": `Noch keine Dokumente angehängt.`,
+  "chatInput.addDocument": `Dokument hinzufügen`,
+  "chatInput.removeDocument": `Entfernen`,
 
   "starter.folderSearch1": `Welche Dateien im Ordner enthalten das Wort „Vertrag“?`,
   "starter.folderSearch2": `Liste alle PDFs im Ordner.`,
