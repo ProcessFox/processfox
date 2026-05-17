@@ -15,6 +15,24 @@ Versionsschema: [Semantic Versioning](https://semver.org/lang/de/).
   einzelnen schon im Kontext liegenden Datei, sondern sichtet erst die
   passenden Dokumente. Tiefe und Eintragszahl sind gedeckelt; Symlinks und
   Junk-Dateien bleiben außen vor.
+- **Gründlichkeits-Regel im System-Prompt.** Eine immer vorhandene,
+  modellunabhängige Zeile weist den Agenten an, bei Fragen zu Dateien,
+  Thema, Projekt oder Zeitraum erst Belege zu sammeln (Workspace sichten,
+  relevante Dokumente lesen), nicht aus einer einzelnen Datei zu antworten
+  (außer benannt) und nach jedem Lesen zu prüfen, ob die Informationslage
+  reicht — sonst weitersuchen statt vorschnell zu antworten.
+
+### Offen / Geplant
+- **Zwischen-Reasoning in den nächsten Request zurückspeisen.** Aktuell wird
+  das pro ReAct-Iteration extrahierte `reasoning` zwar persistiert, aber bei
+  Tool-Call-Turns nicht in den Folge-Request mitgegeben — das Modell verliert
+  zwischen den Schritten seine eigene Überlegung („warum lese ich das?").
+  Geplant: Reasoning der Tool-Call-Iteration weiterreichen (lokal als Text;
+  für Anthropic-Cloud als erhaltener signierter Thinking-Block plus
+  Interleaved-Thinking-Beta-Header `interleaved-thinking-2025-05-14` in
+  `anthropic.rs`). Vor Umsetzung: Provider-Serialisierung des `reasoning`
+  verifizieren. Hoher Nutzen für die „weiter suchen oder antworten?"-
+  Entscheidung, mittlerer Aufwand, Token-Kosten beachten.
 
 ## [0.1.1] — 2026-05-16
 

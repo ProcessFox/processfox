@@ -835,6 +835,19 @@ fn compose_system_prompt(agent: &Agent, skills: &SkillRegistry) -> Option<String
     if let Some(block) = attachments_block(agent) {
         parts.push(block);
     }
+    // Global thoroughness policy. Always present (not gated by folder or
+    // skills) so it also nudges the iterate-read-reason-decide behavior the
+    // ReAct loop already supports: weaker local models otherwise stop at the
+    // first plausible source. Kept short and imperative — long instructions
+    // get ignored by smaller models.
+    parts.push(
+        "Before answering a question about the user's files, a topic, the project, or a \
+         time period, gather evidence first: inspect the workspace and read the relevant \
+         documents — never answer from a single file unless the user named it. After each \
+         read, reason about whether you have enough to answer accurately; if not, keep \
+         searching (more files, grep) before you answer."
+            .to_string(),
+    );
     parts.push("Respond in the language the user used.".to_string());
     if parts.is_empty() {
         None
