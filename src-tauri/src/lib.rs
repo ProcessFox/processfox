@@ -10,9 +10,9 @@ use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter};
 
 use crate::core::llm::{
-    anthropic::AnthropicProvider, cortecs::CortecsProvider,
-    custom_openai::CustomOpenAiProvider, local_gguf::LocalGgufProvider,
-    openai::OpenAiProvider, openrouter::OpenRouterProvider, ProviderRegistry,
+    anthropic::AnthropicProvider, cortecs::CortecsProvider, custom_openai::CustomOpenAiProvider,
+    local_gguf::LocalGgufProvider, openai::OpenAiProvider, openrouter::OpenRouterProvider,
+    ProviderRegistry,
 };
 use crate::core::models::ModelCatalog;
 use crate::core::skill::SkillRegistry;

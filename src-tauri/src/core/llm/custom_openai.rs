@@ -63,7 +63,9 @@ impl LlmProvider for CustomOpenAiProvider {
         cancel: CancellationToken,
     ) -> CoreResult<()> {
         let base_url = self.get_base_url()?;
-        self.make_compat(base_url).generate(request, sink, cancel).await
+        self.make_compat(base_url)
+            .generate(request, sink, cancel)
+            .await
     }
 
     async fn validate(&self) -> CoreResult<()> {

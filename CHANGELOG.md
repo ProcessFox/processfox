@@ -7,6 +7,15 @@ Versionsschema: [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Added
+- **Workspace-Orientierung im System-Prompt.** Der Agent sieht pro
+  User-Turn ein begrenztes, datiertes Inventar seines Ordners (`## Workspace`,
+  eingerückter Baum mit Größe + Änderungsdatum). Damit beantwortet er Fragen
+  über „das Projekt", ein Thema oder einen Zeitraum nicht mehr aus einer
+  einzelnen schon im Kontext liegenden Datei, sondern sichtet erst die
+  passenden Dokumente. Tiefe und Eintragszahl sind gedeckelt; Symlinks und
+  Junk-Dateien bleiben außen vor.
+
 ## [0.1.1] — 2026-05-16
 
 ### Changed

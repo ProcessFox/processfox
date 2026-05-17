@@ -14,13 +14,7 @@ pub struct CortecsProvider {
 impl CortecsProvider {
     pub fn new() -> CoreResult<Self> {
         Ok(Self {
-            inner: OpenAiCompat::new(
-                "cortecs",
-                "cortecs",
-                "https://api.cortecs.ai/v1",
-                &[],
-                true,
-            )?,
+            inner: OpenAiCompat::new("cortecs", "cortecs", "https://api.cortecs.ai/v1", &[], true)?,
         })
     }
 }

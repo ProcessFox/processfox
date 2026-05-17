@@ -15,3 +15,4 @@ pub mod storage;
 pub mod tool;
 pub mod types;
 pub mod watcher;
+pub mod workspace;

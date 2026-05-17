@@ -826,6 +826,9 @@ fn compose_system_prompt(agent: &Agent, skills: &SkillRegistry) -> Option<String
     if !agent.system_prompt.trim().is_empty() {
         parts.push(agent.system_prompt.trim().to_string());
     }
+    if let Some(block) = workspace_block(agent) {
+        parts.push(block);
+    }
     if let Some(block) = skills_block(agent, skills) {
         parts.push(block);
     }
@@ -838,6 +841,25 @@ fn compose_system_prompt(agent: &Agent, skills: &SkillRegistry) -> Option<String
     } else {
         Some(parts.join("\n\n"))
     }
+}
+
+/// Render a bounded, dated overview of the agent folder so the model is
+/// oriented before it picks files/skills. Without this, project-/topic-/
+/// time-scoped questions get answered from whatever single file is already
+/// in context. Returns `None` when the agent has no folder or it yields no
+/// listable entries, so no empty `## Workspace` header is emitted.
+fn workspace_block(agent: &Agent) -> Option<String> {
+    let folder = agent.folder.as_deref()?;
+    let tree = crate::core::workspace::build_workspace_tree(folder)?;
+    let mut block = String::from("## Workspace\n");
+    block.push_str(
+        "Diese Dateien liegen im Ordner der Nutzer:in (Überblick, evtl. gekürzt). \
+         Bei Fragen zum „Projekt\", zu einem Thema oder Zeitraum: erst hier passende \
+         Dateien sichten (list_folder/grep_in_files/read_*), nicht aus einer einzelnen \
+         Datei antworten, außer die Nutzer:in hat sie ausdrücklich benannt.\n\n",
+    );
+    block.push_str(&tree);
+    Some(block)
 }
 
 /// Render the agent's enabled skills as a compact "Available skills" list.
