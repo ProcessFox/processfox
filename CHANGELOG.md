@@ -34,6 +34,119 @@ Versionsschema: [Semantic Versioning](https://semver.org/lang/de/).
   verifizieren. Hoher Nutzen für die „weiter suchen oder antworten?"-
   Entscheidung, mittlerer Aufwand, Token-Kosten beachten.
 
+### Bekannte Lücken — Code-Audit vom 2026-07-12
+
+Ergebnis eines vollständigen Code-Durchgangs (Frontend, Chat-Pipeline,
+LLM/Modelle, Tools/Skills, Agent-/Dateiverwaltung). Jeder Punkt ist so
+beschrieben, dass er ohne weiteren Kontext umsetzbar ist. Referenzen als
+`datei:zeile` (Stand dieses Commits).
+
+**Priorität 1 — Korrektheit/Sicherheit:**
+
+- **Sandbox-Seiteneffekt: `create_dir_all` läuft vor der Sandbox-Prüfung.**
+  In `ensure_inside_sandbox` (`src-tauri/src/core/tool/tools/write_docx.rs:172-195`,
+  `create_dir_all` bei Z. 181) und im Inline-Pendant in
+  `src-tauri/src/core/tool/tools/append_to_md.rs:98-124` (Z. 108) wird das
+  Parent-Verzeichnis angelegt, **bevor** geprüft wird, ob es im Agent-Ordner
+  liegt. Übergibt das LLM einen absoluten Pfad, ersetzt `PathBuf::push` den
+  ganzen Pfad (POSIX-Semantik) — es entstehen leere Verzeichnisse außerhalb
+  der Sandbox (die Datei selbst wird nicht geschrieben). Verstößt gegen
+  CLAUDE.md §2 Regel 4. Fix: erst Parent kanonisieren und gegen den
+  Agent-Ordner prüfen, dann `create_dir_all`; dabei die duplizierte Logik
+  (drei Varianten: `core/sandbox.rs::ensure_in_agent_folder`,
+  `write_docx.rs::ensure_inside_sandbox`, Inline in `append_to_md.rs`) in
+  `core/sandbox.rs` zentralisieren. Bestehende Tests in `sandbox.rs:31-113`
+  grün halten, neue Fälle für nicht-existierende Zielpfade + absolute Pfade
+  ergänzen.
+- **HITL-Lücke beim Fan-out-Tool.** `requires_approval` von
+  `delegate_into_xlsx_column`
+  (`src-tauri/src/core/tool/tools/delegate_into_xlsx_column.rs:119-172`)
+  gibt bei Fehlern während der Preview-Erzeugung (Workbook nicht lesbar,
+  Profil nicht auflösbar — `?`/`.ok()?` bei Z. 122/146/148) `None` zurück.
+  `None` bedeutet im Runner-Gate (`core/chat/run.rs:565-632`) „keine
+  Freigabe nötig" — ein Massen-Lauf kann so ohne Bestätigungskarte starten,
+  wenn die Preview scheitert, `execute` aber gelingt. Fix: bei
+  Preview-Fehler eine minimale Fallback-Preview liefern (Tool-Name +
+  Roh-Argumente) statt `None`; alternativ Signatur auf
+  `Result<Option<HitlPreview>>` heben und Fehler ablehnen.
+
+**Priorität 2 — fehlende Features (Backend teilweise fertig):**
+
+- **Agent löschen hat kein UI.** Command `delete_agent`
+  (`src-tauri/src/commands/agent.rs:46-50`) und Frontend-Binding
+  `agentApi.delete` (`src/lib/tauri.ts:27`) existieren, werden aber nirgends
+  aufgerufen. Fix: Lösch-Button mit Bestätigungsdialog im
+  `AgentEditorDialog.tsx`; nach Löschen aktiven Agenten wechseln/leeren.
+  Achtung: `AgentRepo::delete` (`core/agent.rs:301-308`) entfernt nur
+  `agents/{id}.json` — der Chat-Verlauf `agents/{id}.chat.jsonl`
+  (`core/chat/repo.rs:69-71`) bliebe als Waise liegen und muss mit gelöscht
+  werden; ebenso ggf. der Watch auf den Agent-Ordner.
+- **Chat-Verlauf lässt sich nicht löschen/zurücksetzen.** Kein Command, kein
+  UI; `ChatRepo` kann nur `load`/`append` (`core/chat/repo.rs:73-106`).
+  Fix: Command `clear_messages(agent_id)` (JSONL-Datei löschen oder
+  truncaten), Binding in `tauri.ts`, Button im Chat-Header mit
+  Bestätigung. Achtung: `FreshnessTracker::bootstrap_from_history`
+  (`core/chat/freshness.rs:87-128`) liest die History beim ersten Run —
+  nach dem Leeren den Tracker-State für den Agenten mit invalidieren.
+- **User-Skills sind tote Infrastruktur.** `skills_user_dir()`
+  (`core/storage.rs:34`) wird von `ensure_dirs()` angelegt (Z. 54), aber
+  nie gelesen — es gibt nur `SkillRegistry::load_builtin()`
+  (`core/skill/registry.rs:19`) und als einziges Command `list_skills`
+  (`commands/skill.rs:8`). Entscheidung nötig: entweder `load_user()`
+  implementieren (Scan + Frontmatter-Parsing wie builtin, Namenskollisionen
+  definieren) oder Verzeichnis-Anlage entfernen, bis das Feature dran ist.
+- **Custom-Provider verlangt API-Key auch für key-lose Endpunkte.**
+  `send_message` prüft für jeden Provider außer `local` einen Key
+  (`src-tauri/src/commands/chat.rs:28`) — ein lokaler Ollama-/vLLM-Server
+  über den `custom`-Provider scheitert damit grundlos. Fix: `custom` vom
+  Key-Gate ausnehmen (oder Dummy-Key erlauben); `CloudApisTab.tsx`
+  entsprechend anpassen (Key-Feld für Custom optional machen).
+
+**Priorität 3 — kleinere Lücken / Hygiene:**
+
+- **Kontext-Dokumente werden nicht geprunt:** `prune_broken_attachments`
+  (`src-tauri/src/core/watcher.rs:128-142`) räumt bei gelöschten Dateien nur
+  `template_path` auf, nicht `context_paths` — tote Verweise bleiben am
+  Agenten. Fix: `context_paths` in derselben Schleife mitprüfen.
+- **HITL-Ablehnungsgrund ohne UI:** `reject_hitl` akzeptiert optionalen
+  `reason` (`commands/chat.rs:64-75`), das UI ruft immer ohne auf
+  (`src/App.tsx:377`). Fix: optionales Textfeld in `HitlCard.tsx`.
+- **Per-Skill-/Per-Tool-HITL nur im Datenmodell:** `Agent.skill_settings` /
+  `SkillHitl.per_tool` (`src/types/agent.ts:5-7`, `src/types/skill.ts:2`,
+  Rust-Seite `core/agent.rs:90-93`) sind nirgends im UI konfigurierbar —
+  nur der globale Schalter `hitlDisabled`. Entweder UI nachziehen oder
+  Felder entfernen.
+- **Kein Icon-Picker:** `Agent.icon` ist im `AgentEditorDialog.tsx` nicht
+  änderbar (wird nur intern auf den Bestand zurückgesetzt).
+- **Download-Resume fehlt:** `core/models/download.rs` lädt in `.partial`
+  und löscht sie bei Abbruch/Fehler (Z. 137) — kein `Range`-Header, großer
+  Download beginnt von vorn. Fix: `Range`-Request ab `.partial`-Größe,
+  Server-Support (206) prüfen.
+- **`write_docx`-Bullets sind kein echtes Word-Listenformat**, nur
+  `"• "`-Textpräfix (`core/tool/tools/write_docx.rs:142-144`, dokumentiert
+  „for v1"). Fix: echte Numbering-Definition via `docx-rs`.
+- **Veralteter Doc-String in `read_file`:** „use dedicated tools for
+  PDF/DOCX/XLSX instead (coming later)" (`core/tool/tools/read_file.rs:35`)
+  — die Tools existieren längst; Schema-Beschreibung geht so ans LLM.
+- **`ReasoningChip`-Labels hart deutsch codiert** („Denkt …"/„Gedanken",
+  `src/components/chat/ReasoningChip.tsx:31`) statt über i18n.
+- **Ungenutztes Binding:** `available_providers` (`src/lib/tauri.ts:139`)
+  wird nirgends aufgerufen; Provider-Listen sind im UI hart codiert
+  (`CloudApisTab.tsx`, `AgentEditorDialog.tsx`). Entweder nutzen oder
+  Binding + Command entfernen.
+- **Platzhalter `tool_calls_were_emitted`** liefert immer `false`
+  (`core/llm/local_gguf.rs:605-607`, Aufrufer Z. 505) — die
+  `FinishReason::ToolUse`-Erkennung hängt allein an den Events; bewusst so
+  kommentiert, bei Umbau des Local-Providers auflösen.
+
+**Test-Lücken:**
+
+- Kein Integrationstest für den `react_loop` (Mock-`LlmProvider`, der
+  Tool-Calls/HITL/AskUser durchspielt) — nur die Hilfsfunktionen sind
+  getestet (`core/chat/run.rs:1200-1532`).
+- `core/chat/repo.rs` (JSONL-Persistenz) ist komplett ungetestet
+  (Append/Load-Roundtrip, korrupte Zeilen werden übersprungen).
+
 ## [0.1.1] — 2026-05-16
 
 ### Changed

@@ -59,39 +59,53 @@ processfox/
 ├── README.md
 ├── CONCEPT.md
 ├── CLAUDE.md                       # dieses Dokument
-├── LICENSE
+├── CHANGELOG.md
+├── LICENSE                         # GPL v3 (Community Edition)
+├── LICENSE-STORE                   # proprietäre Store-Lizenz
 ├── .gitignore
 ├── package.json
 ├── vite.config.ts
 ├── tsconfig.json
 ├── tailwind.config.js
+├── components.json                 # shadcn/ui-Config
 ├── index.html
 ├── src/                            # Frontend (React + TS)
 │   ├── main.tsx
 │   ├── App.tsx
 │   ├── components/
-│   │   ├── agent/                  # AgentSwitcher, AgentEditorDialog, SkillIconRow
+│   │   ├── agent/                  # AgentSwitcher, AgentEditorDialog
 │   │   ├── chat/                   # ChatPane, ChatInput, HitlCard, AskUserCard,
-│   │   │                           # ToolCallChip, ReasoningChip
+│   │   │                           # ToolCallChip, ReasoningChip, MessageMarkdown
 │   │   ├── filetree/               # FileTree (react-arborist)
-│   │   ├── preview/                # PreviewPane für Datei-Vorschau
+│   │   ├── preview/                # Format-Viewer/-Editoren: PreviewPane, PreviewHeader,
+│   │   │                           # DocxViewer, PptxViewer, XlsxViewer, PdfViewer,
+│   │   │                           # ImageViewer, MarkdownEditor, TextEditor, UnsupportedViewer
 │   │   ├── settings/               # ModelsTab, CloudApisTab
 │   │   ├── theme-provider.tsx
 │   │   └── ui/                     # shadcn-Bausteine
 │   ├── views/
 │   │   ├── Main.tsx
-│   │   └── Settings.tsx
+│   │   ├── Settings.tsx
+│   │   └── Welcome.tsx
 │   ├── hooks/                      # useAgentChat etc.
 │   ├── lib/
-│   │   └── tauri.ts                # typed invoke() wrappers + event subs
+│   │   ├── tauri.ts                # typed invoke() wrappers + event subs
+│   │   ├── i18n.ts                 # i18next-Setup
+│   │   ├── fileIcons.ts
+│   │   ├── toolIcons.ts
+│   │   ├── starterPrompts.ts
+│   │   └── utils.ts
+│   ├── locales/                    # i18next-Übersetzungen: de/en/es/fr/it/pl
 │   └── types/                      # ChatMessage, Agent, Skill, …
 ├── src-tauri/                      # Backend (Rust)
 │   ├── Cargo.toml
 │   ├── tauri.conf.json
-│   ├── build.rs
+│   ├── build.rs                    # liest PROCESSFOX_EDITION → cfg(edition_store)
+│   ├── icons/                      # tatsächliche Bundle-Icons (macOS/Windows/Android/iOS)
 │   ├── skills_builtin/             # eingebaute Skills (include_dir!-eingebunden)
 │   │   ├── folder-search/
 │   │   │   └── SKILL.md
+│   │   ├── document-read/
 │   │   ├── document-extend/
 │   │   ├── document-create-docx/
 │   │   ├── document-edit/
@@ -99,7 +113,8 @@ processfox/
 │   │   ├── table-read/
 │   │   ├── table-update/
 │   │   ├── table-create/
-│   │   └── chat-context/
+│   │   ├── chat-context/
+│   │   └── context-document-read/
 │   └── src/
 │       ├── main.rs
 │       ├── lib.rs                  # tauri::Builder, generate_handler!
@@ -110,6 +125,7 @@ processfox/
 │       │   ├── file.rs             # list/watch/unwatch agent folder
 │       │   ├── mod.rs
 │       │   ├── models.rs
+│       │   ├── preview.rs          # docx/pptx/xlsx-Preview-Generierung
 │       │   ├── secrets.rs
 │       │   ├── settings.rs
 │       │   └── skill.rs
@@ -117,19 +133,25 @@ processfox/
 │           ├── agent.rs            # Agent-Datenmodell, Persistenz
 │           ├── chat/               # ChatRunner, ReAct-Loop, ChatRepo
 │           │   ├── run.rs          # ReAct-Orchestrierung + HITL/AskUser-Pipelines
-│           │   └── repo.rs         # JSONL-Persistenz pro Agent
+│           │   ├── repo.rs         # JSONL-Persistenz pro Agent
+│           │   └── freshness.rs    # FreshnessTracker / Staleness-Hint
+│           ├── delegation/         # Stateless LLM-Inferenz für Fan-out-Tools (Background Worker)
 │           ├── error.rs            # CoreError + CommandError
 │           ├── hardware.rs         # RAM/VRAM-Erkennung
+│           ├── license.rs          # Edition-Enum, Edition::current()
 │           ├── llm/                # LlmProvider Trait + Implementierungen
 │           │   ├── anthropic.rs
 │           │   ├── openai.rs
-│           │   ├── openai_compat.rs
+│           │   ├── openai_compat.rs # geteilte HTTP-/Streaming-Basis für OpenAI-kompatible Provider
 │           │   ├── openrouter.rs
+│           │   ├── cortecs.rs
+│           │   ├── custom_openai.rs # nutzerkonfigurierter OpenAI-kompatibler Endpoint (Ollama/vLLM)
 │           │   ├── local_gguf.rs   # llama-cpp-2-Wrapper, Idle-Watcher
 │           │   ├── json_cleanup.rs
 │           │   └── registry.rs
 │           ├── models/             # GGUF-Catalog, Download-Runner
-│           ├── sandbox.rs          # ensure_in_agent_folder
+│           ├── preview/            # docx/pptx/xlsx-Preview-Erzeugung
+│           ├── sandbox.rs          # ensure_in_agent_folder, ensure_inside_sandbox
 │           ├── secrets.rs          # keyring-API-Key-Storage
 │           ├── settings.rs
 │           ├── skill/              # SKILL.md-Parsing, SkillRegistry
@@ -138,20 +160,24 @@ processfox/
 │           │   ├── mod.rs          # Tool Trait, HitlPreview, ToolContext
 │           │   ├── registry.rs
 │           │   └── tools/          # einzelne Tool-Implementierungen
-│           │       ├── list_folder.rs / grep_in_files.rs / read_file.rs
+│           │       ├── list_folder.rs / grep_in_files.rs / read_file.rs / read_skill.rs
 │           │       ├── read_pdf.rs / read_docx.rs / read_xlsx_range.rs
 │           │       ├── append_to_md.rs / append_to_docx.rs / rewrite_file.rs
 │           │       ├── write_docx.rs / write_docx_from_template.rs
 │           │       ├── write_xlsx.rs / update_xlsx_cell.rs
+│           │       ├── delegate_into_xlsx_column.rs   # Fan-out: LLM-Worker pro Zeile
 │           │       └── ask_user.rs
+│           ├── workspace.rs        # Ordner-Baum fürs System-Prompt (siehe §5)
 │           ├── types.rs
 │           └── watcher.rs          # notify-debouncer-mini Folder-Watch
-├── assets/                         # Marketing-Assets, App-Icons (nicht im Bundle)
-├── benchmarks/                     # Mess-Skripte für LLM-Runtime-Vergleiche
+├── assets/                         # Nur Icon-Quelldatei (assets/source/) — Bundle-Icons liegen in src-tauri/icons/
+├── benchmarks/                     # Historisches Artefakt (Phase 2c LLM-Runtime-Vergleich), kein aktiver Test-Pfad
 ├── public/                         # statische Assets fürs Vite-Frontend
 └── .github/
     └── workflows/
-        └── release.yml
+        ├── ci.yml                  # fmt/clippy/cargo test + npm build, auf push/PR gegen main
+        ├── release.yml             # Community Edition, workflow_dispatch, GitHub-Draft-Release
+        └── release-store.yml       # Store Edition (Apple/Microsoft), workflow_dispatch
 ```
 
 > **Doku-Repo ist separat.** Architektur, Roadmap, Skill-Dokus und LLM-Kompatibilität liegen in einem eigenen Astro-/Starlight-Repo (veröffentlicht unter `www.processfox.ai/docs/`) und werden vom Owner manuell mit der App synchron gehalten. `CONCEPT.md` bleibt als interne Vision im Repo-Root.
@@ -160,7 +186,7 @@ processfox/
 
 ### Tauri Commands (Rust → Frontend)
 
-- Jeder Command nimmt `tauri::State<'_, AppState>` entgegen. `AppState` selbst ist `Clone` mit pro-Feld `Arc<OnceLock<…>>` für lazy-initialisierte Singletons (ChatRunner, DownloadRunner, FolderWatcher) — kein globaler Mutex außenrum.
+- Jeder Command, der Shared State braucht, nimmt `tauri::State<'_, AppState>` entgegen. `AppState` selbst ist `Clone` mit pro-Feld `Arc<OnceLock<…>>` für lazy-initialisierte Singletons (ChatRunner, DownloadRunner, FolderWatcher, DelegationRunner) — kein globaler Mutex außenrum. Ausnahme: rein zustandslose Commands (z. B. die Keyring-Zugriffe in `secrets.rs`, `get_app_info`) verzichten bewusst auf `AppState`.
 - Fehler werden als `Result<T, CommandError>` zurückgegeben, wobei `CommandError` serialisierbar ist und einen `code`, `message`, und optional `details` enthält.
 - Lange Operationen (Modell-Download, ReAct-Loop) laufen via Tauri-Events (`app.emit`), nicht als Return-Value.
 - Command-Namen in `snake_case` in Rust, TypeScript-Seite wrappt zu `camelCase`.
@@ -174,7 +200,7 @@ processfox/
 ### LLM-Runtime-Abstraktion
 
 - Trait `LlmProvider` mit async `generate(request, sink, cancel) -> CoreResult<()>`. Streamt `LlmEvent`s über einen `mpsc::Sender`, respektiert `CancellationToken`.
-- Implementierungen: `LocalGgufProvider` (llama-cpp-2), `AnthropicProvider`, `OpenAiProvider`, `OpenRouterProvider`.
+- Implementierungen: `LocalGgufProvider` (llama-cpp-2), `AnthropicProvider`, `OpenAiProvider`, `OpenRouterProvider`, `CortecsProvider`, `CustomOpenAiProvider` (nutzerkonfigurierter OpenAI-kompatibler Endpoint, z. B. Ollama/vLLM). `OpenAiProvider`, `OpenRouterProvider`, `CortecsProvider` und `CustomOpenAiProvider` teilen sich die HTTP-/Streaming-Basis `OpenAiCompat` (`core/llm/openai_compat.rs`) statt jeweils eigenen Boilerplate zu implementieren — nur `CustomOpenAiProvider` setzt `include_usage = false`, weil manche selbstgehosteten Backends den Parameter ablehnen.
 - Einheitliches Event-Format: `TextDelta`, `ReasoningDelta` (für `<|channel>thought` u. ä.), `ToolCall`, `Usage(TokenUsage)`, `Finish { reason }`, `Error { code, message }`.
 - `supports_tools()` markiert Provider, die `request.tools` verarbeiten können — der ReAct-Loop reicht Tools nur an Provider, die das bestätigen.
 - **Lokales Modell-Lifecycle:** `LocalGgufProvider` hält ein Modell zwischen Generations geladen, entlädt es aber nach 10 min Idle automatisch (Watcher in `ensure_idle_watcher`). Wer den RAM-Bedarf debuggt oder zusätzliche Trigger zum Entladen einbaut (z. B. beim Wechsel auf Cloud-Provider), arbeitet hier — nicht den Watcher umgehen, sondern ergänzen.
@@ -184,22 +210,23 @@ processfox/
 - Provider emittieren genau einmal pro Generation ein `LlmEvent::Usage(TokenUsage)`, direkt vor dem terminalen `Finish`. `TokenUsage` führt `input_tokens`, `output_tokens`, `cached_input_tokens` und `cache_creation_input_tokens` (die letzten beiden `Option<u32>`).
 - Welcher Provider was füllt:
   - **Anthropic:** alle vier Felder (Cache-Werte stehen im `message_start.usage`-Block, output_tokens kumulativ in `message_delta.usage`).
-  - **OpenAI / OpenRouter:** `input_tokens`, `output_tokens`, `cached_input_tokens` (aus `prompt_tokens_details.cached_tokens`). Voraussetzung: `OpenAiCompat::new(..., include_usage = true)` schickt `stream_options.include_usage`. Für selbstgehostete Compat-Server bleibt das opt-in, weil ältere Backends den Schlüssel ablehnen.
+  - **OpenAI / OpenRouter / Cortecs / Custom (alle OpenAI-kompatibel):** teilen sich `OpenAiCompat` und füllen `input_tokens`, `output_tokens`, `cached_input_tokens` (aus `prompt_tokens_details.cached_tokens`). Voraussetzung: `OpenAiCompat::new(..., include_usage = true)` schickt `stream_options.include_usage`. `CustomOpenAiProvider` setzt das bewusst auf `false`, weil selbstgehostete Backends (Ollama/vLLM u. ä.) den Schlüssel teils ablehnen — für andere Compat-Server bleibt es grundsätzlich opt-in.
   - **Local GGUF:** exakte `input_tokens` (aus `tokens.len()`) und `output_tokens` (aus `n_cur - prompt_len`); Cache-Felder bleiben `None`, solange wir bei jedem Call einen frischen `LlamaContext` bauen.
 - Aggregation passiert im `react_loop` (`core/chat/run.rs`): pro Iteration ein `tracing::debug!`-Eintrag, am Ende des Runs ein `tracing::info!("chat run usage", provider, model, iterations, input_tokens, output_tokens, cached_input_tokens, cache_creation_input_tokens)`. Logfile liegt unter `<app-support>/ProcessFox/logs/processfox.log.<datum>`.
 - Wenn ein Provider keine Usage liefert (Compat-Backend ohne `include_usage`, abgebrochener Stream), bleibt das `Usage`-Event aus — der Runner darf nicht hängen, und der Run-Total-Log wird übersprungen statt mit Nullen geschrieben.
 
 ### Tool-Registry
 
-- Tools sind in einer zentralen Registry registriert (`HashMap<String, Arc<dyn Tool>>`).
-- `trait Tool { fn name() -> &str; fn schema() -> JsonSchema; async fn execute(input, context) -> Result<Output>; }`.
-- `context` enthält Agent-ID, Agent-Ordner-Pfad, App-Handle für Events.
+- Tools sind in einer zentralen Registry registriert (`HashMap<&'static str, Arc<dyn Tool>>`).
+- `trait Tool: Send + Sync + Debug { fn name(&self) -> &'static str; fn schema(&self) -> ToolSchema; async fn execute(&self, input, ctx: &ToolContext) -> CoreResult<ToolOutput>; fn requires_approval(&self, input: &JsonValue, ctx: &ToolContext) -> Option<HitlPreview> { None } }`. `requires_approval` ist der zentrale Haken für HITL (§2 Regel 5) — Standard `None` (kein Preview nötig), Schreib-Tools überschreiben es.
+- `ToolContext` enthält Agent-ID, Agent-Ordner-Pfad, App-Handle für Events, plus `channel` (Event-Channel-Name), `tool_call_id` und `cancel: CancellationToken` für kooperatives Abbrechen von Fan-out-Tools.
 
 ### Skill-Loading
 
-- Beim App-Start werden `src-tauri/skills_builtin/` und `<app-support>/skills/user/` gescannt.
-- Frontmatter wird via `serde_yaml` oder `gray_matter` geparsed.
+- Beim App-Start wird nur `src-tauri/skills_builtin/` geladen — via `include_dir!` zur Compile-Zeit eingebettet und von `SkillRegistry::load_builtin()` geparst (kein Runtime-Filesystem-Scan).
+- Frontmatter wird via `serde_yaml` geparsed (manueller `---`-Split, kein `gray_matter` — die Crate ist keine Dependency).
 - Geladen in ein `SkillRegistry`, von dort kann der Agent sie abrufen.
+- **Bekannte Lücke:** `<app-support>/skills/user/` wird von `AppPaths::ensure_dirs()` angelegt, aber nirgends gescannt oder in die `SkillRegistry` gemerged — der Ordner ist vorbereitet, aber tot. Wer nutzerdefinierte SKILL.md-Dateien laden will, muss diesen Scan erst bauen; bis dahin nicht als vorhandenes Feature behandeln oder dokumentieren.
 
 ### Progressive Skill Disclosure
 
@@ -238,6 +265,7 @@ processfox/
 - Pflicht-Helper: **`trim_history(turns, window)`** in `core/chat/run.rs`. Nach dem Drain läuft eine Heal-Schleife, die führende Turns droppt, die kein sauberer User-Start sind (Tool-Result-Turn, Assistant-Turn, Assistant mit Tool-Calls), bis der erste Turn ein echter `user`-Turn mit Content ist. Ergebnis darf kürzer als `window` sein, niemals länger.
 - **Wer den Trim umbaut, muss die Tests in `core/chat/run.rs::tests` grün halten** — dort liegen Cases für Orphan-Tool-Result, führenden Assistant, Orphan-Kette und intaktes Paar an der Grenze.
 - Wenn das Window in Tool-lastigen Sessions konsistent unter ~16 Turns sackt, lohnt ein klügerer Trim: rückwärts vom Ende einen sauberen Boundary suchen, der genau `window` Turns ergibt. Erst messen (Token-Logs zeigen die effektive History-Größe nicht direkt — ggf. extra DEBUG-Log einbauen), dann optimieren.
+- **Anwendungspunkt:** `trim_history`/`select_initial_turns` läuft nur **einmal pro User-Turn**, am Anfang von `react_loop` — nicht vor jedem einzelnen LLM-Call innerhalb eines ReAct-Zyklus. Bei vielen Tool-Iterationen in einer einzigen User-Anfrage (bis `MAX_REACT_ITERATIONS = 12`) wächst die tatsächlich gesendete Turn-Zahl innerhalb dieses Zyklus über `HISTORY_WINDOW` hinaus, weil neue Assistant-/Tool-Result-Turns ungetrimmt angehängt werden. Kein Bug, aber beim Tunen von `HISTORY_WINDOW`/`MAX_REACT_ITERATIONS` relevant.
 
 ## 6. Sicherheits-Pattern
 
@@ -265,18 +293,20 @@ fn ensure_in_agent_folder(agent_folder: &Path, requested: &Path) -> Result<PathB
 
 Zusätzlich: Symlink-Escape-Prävention durch `canonicalize`; Denylist für spezielle Dateien (`.DS_Store`, `Thumbs.db` ignorieren aber nicht manipulieren); maximale Dateigröße-Limits für Lese-Tools.
 
+**Zweite Variante für Schreib-Tools:** `ensure_in_agent_folder` verlangt, dass der Pfad bereits existiert (Standardfall für Lese-Tools). Schreib-Tools, deren Zielpfad noch nicht existiert (`write_docx.rs`, `write_xlsx.rs`, `update_xlsx_cell.rs`, `rewrite_file.rs`, `append_to_docx.rs`, `write_docx_from_template.rs`, `delegate_into_xlsx_column.rs`), nutzen stattdessen `ensure_inside_sandbox` (definiert in `core/tool/tools/write_docx.rs`), das fehlende Elternverzeichnisse per `create_dir_all` anlegt, bevor kanonisiert wird. Gleiches Sicherheitsprinzip, andere Existenz-Annahme — beide Funktionen im Auge behalten, wenn du an der Sandbox-Grenze arbeitest.
+
 ## 7. Test-Strategie
 
-- **Rust:** `cargo test` für Unit-Tests pro Tool. Integration-Tests für ReAct-Loop mit Mock-LLM.
-- **Frontend:** `vitest` für Hooks und Utility-Funktionen. Storybook optional für Komponenten in späteren Phasen.
-- **Build-Gates vor jedem Commit:** `cargo fmt`, `cargo clippy --all-targets --no-default-features -- -D warnings`, `npm run build`. Smoke-Run im `tauri dev`-Fenster für jede HITL-fähige Änderung.
+- **Rust (Ist-Stand):** `cargo test` läuft, aber die Abdeckung liegt fast ausschließlich in Core-Logik-Modulen (`sandbox.rs`, `workspace.rs`, `chat/freshness.rs`, `chat/run.rs`, `skill/registry.rs`, `llm/json_cleanup.rs`, `preview/*.rs`) — nicht "pro Tool": die einzelnen Dateien unter `core/tool/tools/` haben (bis auf einen Test in `read_xlsx_range.rs`) keine Unit-Tests. Es gibt **keine** Integration-Tests für den ReAct-Loop mit Mock-LLM — kein Mock-`LlmProvider` existiert im Repo. Wer das aufbaut: neuer Test-Ordner + Fake-Provider, der `LlmProvider` implementiert.
+- **Frontend (Ist-Stand):** Kein `vitest`, keine `*.test.ts(x)`-Dateien, kein Test-Script in `package.json` — Frontend-Tests existieren aktuell nicht. Storybook weiterhin nicht aufgesetzt (bleibt für spätere Phasen optional).
+- **Build-Gates:** laufen aktuell über CI (`.github/workflows/ci.yml`, getriggert auf `push`/`pull_request` gegen `main`), nicht als lokaler Pre-Commit-Hook — es gibt keine Husky-/Git-Hook-Konfiguration im Repo. CI führt `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` (**ohne** `--no-default-features`) und in einem separaten Frontend-Job `tsc && npm run build` aus. Vor jedem Commit lokal dieselben Befehle laufen zu lassen bleibt trotzdem beste Praxis, auch wenn nichts sie technisch erzwingt. Smoke-Run im `tauri dev`-Fenster für jede HITL-fähige Änderung.
 - **E2E:** Playwright/WebDriver-basierte Tests sind für Phase 5/6 vorgesehen, aktuell noch nicht aufgesetzt — in der Zwischenzeit reicht der manuelle Smoke-Run.
-- **Tool-Calling mit echten Modellen:** Eigenes Test-Script ist nicht aufgebaut; statt dessen läuft die Validierung pro Skill manuell beim Smoke-Run nach jeder Etappe.
+- **Tool-Calling mit echten Modellen:** Eigenes Test-Script ist nicht aufgebaut; statt dessen läuft die Validierung pro Skill manuell beim Smoke-Run nach jeder Etappe. (`benchmarks/` ist ein historisches Artefakt aus Phase 2c für Runtime-Vergleiche, kein Tool-Calling-Test.)
 
 ## 8. Sprach-Konvention
 
 - **Code:** Englisch (Variablen, Funktionsnamen, Kommentare, Git-Commit-Messages).
-- **UI-Strings:** Deutsch (in v1 fest verdrahtet, keine i18n-Library nötig — aber so strukturiert, dass i18n später nachrüstbar ist; z. B. ein `src/lib/strings.ts` mit Keys).
+- **UI-Strings:** i18next ist bereits im Einsatz (`src/lib/i18n.ts`, `src/locales/{de,en,es,fr,it,pl}.ts`, `useTranslation`/`t(...)` in ~20 Komponenten). Deutsch bleibt die primäre/Referenz-Sprache, aber es ist **nicht** mehr nur "fest verdrahtet mit Retrofit-Potenzial" — die i18n-Library ist produktiv. Neue UI-Strings gehören in `src/locales/*.ts`, nicht hartkodiert in Komponenten.
 - **Dokumentation im Repo:** Deutsch (CONCEPT.md, dieses Dokument). Die öffentliche Doku (separates Repo, `www.processfox.ai/docs/`) ist ebenfalls deutsch — der Owner ist deutschsprachig und Beta-Tester:innen ebenfalls.
 - **SKILL.md-Bodies:** Englisch. Standard-Hinweis im Prompt: "Respond in the user's language."
 
@@ -298,7 +328,7 @@ Zusätzlich: Symlink-Escape-Prävention durch `canonicalize`; Denylist für spez
 
 - Keine eigene State-Library einführen, solange Context + `useState` ausreichen.
 - Keine Mikroservice-Architektur oder externe Services.
-- Keine KI-generierten Skills in v1 (Skill-Erstellungs-UI erlaubt nur formularbasierte Anlage, kein "Agent schreibt seinen eigenen Skill").
+- Keine KI-generierten Skills in v1 (kein "Agent schreibt seinen eigenen Skill"). Aktuell existiert noch **gar keine** Skill-Erstellungs-UI — Skills entstehen nur als manuell angelegte `SKILL.md`-Dateien unter `skills_builtin/`; im Frontend lassen sich Skills pro Agent nur an-/abwählen (`AgentEditorDialog`). Falls eine Erstellungs-UI gebaut wird, darf sie ausschließlich formularbasierte Anlage erlauben.
 - Keine impliziten Berechtigungen — jede Datei-Operation ist explizit gesandboxt.
 - Keine Chat-History-Sidebar. Ernsthaft.
 - Keine Einführung einer Skript-Sprache für User in v1.
@@ -308,13 +338,13 @@ Zusätzlich: Symlink-Escape-Prävention durch `canonicalize`; Denylist für spez
 Laufende Änderungen werden in [`CHANGELOG.md`](CHANGELOG.md) unter `## [Unreleased]` mitgeschrieben — beim Release wird dieser Block einfach in den neuen Versionsabschnitt umbenannt und dient direkt als Release-Notes.
 
 1. Alle Akzeptanzkriterien der aktuellen Phase (Roadmap unter `https://www.processfox.ai/docs/entwickler/roadmap/`) sind erfüllt.
-2. Version in `package.json` und `src-tauri/tauri.conf.json` bumpen.
+2. Version in `package.json`, `src-tauri/tauri.conf.json` **und** `src-tauri/Cargo.toml` bumpen — alle drei müssen übereinstimmen, sonst meldet `get_app_info` (liest `CARGO_PKG_VERSION`) eine falsche Version an die UI.
 3. In `CHANGELOG.md` den `## [Unreleased]`-Block in `## [<version>] — <YYYY-MM-DD>` umbenennen und einen neuen leeren `## [Unreleased]`-Block oben einfügen.
 4. Schritte 2–3 auf `main` mergen.
 5. Auf GitHub → Actions → "Release" → **"Run workflow"** klicken (`workflow_dispatch`).
 6. GitHub Actions baut auf drei Plattformen (macOS ARM, Linux x64, Windows x64). Die `tauri-action` erstellt automatisch den Tag `v<VERSION>` und ein **Draft-Release** mit den Build-Artefakten.
 7. Draft-Release auf GitHub öffnen, den frisch umbenannten CHANGELOG-Block als Release-Notes übernehmen (ggf. um Download-Hinweise und macOS-Quarantäne-Workaround ergänzen), dann **"Publish release"** klicken.
-8. Für Store-Versionen: neue Builds über die jeweiligen Store-Portale einreichen (Apple App Store Connect, Microsoft Partner Center). Auto-Updates laufen über den Store-Mechanismus — kein eigener Updater nötig.
+8. Für Store-Versionen: `.github/workflows/release-store.yml` (ebenfalls `workflow_dispatch`) baut die Store Edition (`PROCESSFOX_EDITION=store`, `LICENSE-STORE`) für macOS und Windows und lädt unsignierte Artefakte hoch — Code-Signing für Apple/Microsoft ist als TODO im Workflow markiert und muss vor der Store-Einreichung ergänzt werden. Die fertigen Artefakte dann über die jeweiligen Store-Portale einreichen (Apple App Store Connect, Microsoft Partner Center). Auto-Updates laufen über den Store-Mechanismus — kein eigener Updater nötig.
 
 ---
 
