@@ -93,6 +93,17 @@ impl ChatRepo {
         Ok(messages)
     }
 
+    /// Remove an agent's chat history file. Missing file counts as success —
+    /// callers use this both for "reset conversation" and agent deletion.
+    pub fn delete(&self, agent_id: &str) -> CoreResult<()> {
+        let path = self.file_for(agent_id);
+        match std::fs::remove_file(&path) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
     pub fn append(&self, agent_id: &str, message: &ChatMessage) -> CoreResult<()> {
         std::fs::create_dir_all(&self.dir)?;
         let path = self.file_for(agent_id);

@@ -1,13 +1,20 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { Folder, Wrench } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronRight,
+  Folder,
+  Trash2,
+  Wrench,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { DynamicIcon } from "@/components/ui/DynamicIcon";
+import { AGENT_ICON_CHOICES, DynamicIcon } from "@/components/ui/DynamicIcon";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -27,6 +34,9 @@ type Props = {
   agent: Agent | null;
   onClose: () => void;
   onSaved: (agent: Agent) => void;
+  /** Called after the agent (and its chat history) was deleted so the
+   *  parent can refresh its list and pick a new active agent. */
+  onDeleted: () => void | Promise<void>;
 };
 
 type ModelSelection =
@@ -117,7 +127,7 @@ function ModelOverridePicker({
               : "border-border bg-background hover:bg-accent"
           }`}
         >
-          <div className="font-medium">Override</div>
+          <div className="font-medium">{t("agent.modelOverride")}</div>
           <div className="mt-0.5 text-muted-foreground">{overrideHint}</div>
         </button>
       </div>
@@ -189,6 +199,7 @@ export function AgentEditorDialog({
   agent,
   onClose,
   onSaved,
+  onDeleted,
 }: Props) {
   const { t } = useTranslation();
   const [name, setName] = useState("");
@@ -206,6 +217,9 @@ export function AgentEditorDialog({
   const [delegationSelection, setDelegationSelection] = useState<ModelSelection>(
     { kind: "inherit" },
   );
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -234,6 +248,10 @@ export function AgentEditorDialog({
       setDelegationEnabled(dp?.enabled ?? false);
       setDelegationSystemPrompt(dp?.systemPromptOverride ?? "");
       setDelegationSelection(modelRefToSelection(dp?.modelOverride ?? null));
+      // Open the advanced section when it holds active settings — hiding an
+      // enabled "write without approval" behind a collapsed toggle would
+      // make the agent's riskiest option invisible.
+      setShowAdvanced(agent.hitlDisabled || (dp?.enabled ?? false));
     } else {
       setName("");
       setIcon("Bot");
@@ -245,7 +263,9 @@ export function AgentEditorDialog({
       setDelegationEnabled(false);
       setDelegationSystemPrompt("");
       setDelegationSelection({ kind: "inherit" });
+      setShowAdvanced(false);
     }
+    setConfirmDelete(false);
     setError(null);
   }, [isOpen, mode, agent]);
 
@@ -255,6 +275,26 @@ export function AgentEditorDialog({
       if (typeof picked === "string") setFolder(picked);
     } catch (e) {
       setError(String(e));
+    }
+  }
+
+  async function handleDelete() {
+    if (!agent) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await agentApi.delete(agent.id);
+      await onDeleted();
+      onClose();
+    } catch (e) {
+      const msg =
+        typeof e === "object" && e && "message" in e
+          ? String((e as { message: unknown }).message)
+          : String(e);
+      setError(msg);
+      setConfirmDelete(false);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -343,6 +383,27 @@ export function AgentEditorDialog({
               onChange={(e) => setName(e.target.value)}
               placeholder={t("agent.namePlaceholder")}
             />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">{t("agent.icon")}</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {AGENT_ICON_CHOICES.map((choice) => (
+                <button
+                  key={choice}
+                  type="button"
+                  onClick={() => setIcon(choice)}
+                  aria-label={choice}
+                  className={`flex h-8 w-8 items-center justify-center rounded-md border transition-colors ${
+                    icon === choice
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "border-border bg-background text-muted-foreground hover:bg-accent"
+                  }`}
+                >
+                  <DynamicIcon name={choice} className="h-4 w-4" />
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -439,69 +500,99 @@ export function AgentEditorDialog({
             )}
           </div>
 
-          <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-background p-2">
-            <input
-              type="checkbox"
-              checked={hitlDisabled}
-              onChange={(e) => setHitlDisabled(e.target.checked)}
-              className="mt-0.5"
-            />
-            <div className="flex flex-col gap-0.5">
-              <span className="text-xs font-medium">
-                {t("agent.hitlDisabledTitle")}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {t("agent.hitlDisabledDesc")}
-              </span>
-            </div>
-          </label>
-
-          <div className="flex flex-col gap-2 rounded-md border border-border bg-background p-2">
-            <label className="flex cursor-pointer items-start gap-2">
-              <input
-                type="checkbox"
-                checked={delegationEnabled}
-                onChange={(e) => setDelegationEnabled(e.target.checked)}
-                className="mt-0.5"
+          {/* Rarely-needed, riskier options live behind a collapsed section
+              so the default form stays approachable for beginners. */}
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              <ChevronRight
+                className={`h-3 w-3 shrink-0 transition-transform ${
+                  showAdvanced ? "rotate-90" : ""
+                }`}
               />
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs font-medium">
-                  {t("agent.delegationTitle")}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {t("agent.delegationDesc")}
-                </span>
-              </div>
-            </label>
+              {t("agent.advanced")}
+            </button>
 
-            {delegationEnabled && (
-              <div className="ml-6 flex flex-col gap-2 border-l border-border pl-3">
-                <Label
-                  htmlFor="delegation-prompt"
-                  className="text-xs"
+            {showAdvanced && (
+              <div className="flex flex-col gap-3">
+                <label
+                  className={`flex cursor-pointer items-start gap-2 rounded-md border p-2 ${
+                    hitlDisabled
+                      ? "border-warning/50 bg-warning/10"
+                      : "border-border bg-background"
+                  }`}
                 >
-                  {t("agent.delegationPromptLabel")}
-                </Label>
-                <Textarea
-                  id="delegation-prompt"
-                  value={delegationSystemPrompt}
-                  onChange={(e) => setDelegationSystemPrompt(e.target.value)}
-                  rows={3}
-                  placeholder={t("agent.delegationPromptPlaceholder")}
-                  className="resize-none text-xs"
-                />
-                <Label className="text-xs">{t("agent.delegationModelLabel")}</Label>
-                <ModelOverridePicker
-                  selection={delegationSelection}
-                  onChange={setDelegationSelection}
-                  installed={installed}
-                  defaultLabel={t("agent.delegationDefaultLabel")}
-                  defaultHint={t("agent.delegationDefaultHint")}
-                  overrideHint={t("agent.delegationOverrideHint")}
-                  noModelsHint={t("agent.localModelDownloadFirst")}
-                  chooseModelLabel={t("agent.localModelChoose")}
-                  modelPlaceholder={t("agent.localModelPlaceholder")}
-                />
+                  <input
+                    type="checkbox"
+                    checked={hitlDisabled}
+                    onChange={(e) => setHitlDisabled(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <div className="flex flex-col gap-0.5">
+                    <span className="flex items-center gap-1.5 text-xs font-medium">
+                      {hitlDisabled && (
+                        <AlertTriangle className="h-3 w-3 shrink-0 text-warning" />
+                      )}
+                      {t("agent.hitlDisabledTitle")}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {t("agent.hitlDisabledDesc")}
+                    </span>
+                  </div>
+                </label>
+
+                <div className="flex flex-col gap-2 rounded-md border border-border bg-background p-2">
+                  <label className="flex cursor-pointer items-start gap-2">
+                    <input
+                      type="checkbox"
+                      checked={delegationEnabled}
+                      onChange={(e) => setDelegationEnabled(e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-medium">
+                        {t("agent.delegationTitle")}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {t("agent.delegationDesc")}
+                      </span>
+                    </div>
+                  </label>
+
+                  {delegationEnabled && (
+                    <div className="ml-6 flex flex-col gap-2 border-l border-border pl-3">
+                      <Label
+                        htmlFor="delegation-prompt"
+                        className="text-xs"
+                      >
+                        {t("agent.delegationPromptLabel")}
+                      </Label>
+                      <Textarea
+                        id="delegation-prompt"
+                        value={delegationSystemPrompt}
+                        onChange={(e) => setDelegationSystemPrompt(e.target.value)}
+                        rows={3}
+                        placeholder={t("agent.delegationPromptPlaceholder")}
+                        className="resize-none text-xs"
+                      />
+                      <Label className="text-xs">{t("agent.delegationModelLabel")}</Label>
+                      <ModelOverridePicker
+                        selection={delegationSelection}
+                        onChange={setDelegationSelection}
+                        installed={installed}
+                        defaultLabel={t("agent.delegationDefaultLabel")}
+                        defaultHint={t("agent.delegationDefaultHint")}
+                        overrideHint={t("agent.delegationOverrideHint")}
+                        noModelsHint={t("agent.localModelDownloadFirst")}
+                        chooseModelLabel={t("agent.localModelChoose")}
+                        modelPlaceholder={t("agent.localModelPlaceholder")}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -514,6 +605,17 @@ export function AgentEditorDialog({
         </div>
 
         <DialogFooter>
+          {mode === "edit" && agent && (
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmDelete(true)}
+              disabled={submitting || deleting}
+              className="mr-auto gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {t("agent.deleteAgent")}
+            </Button>
+          )}
           <Button variant="ghost" onClick={onClose} disabled={submitting}>
             {t("common.cancel")}
           </Button>
@@ -525,6 +627,36 @@ export function AgentEditorDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <Dialog
+        open={confirmDelete}
+        onOpenChange={(v) => !v && !deleting && setConfirmDelete(false)}
+      >
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>{t("agent.deleteTitle")}</DialogTitle>
+            <DialogDescription className="pt-2">
+              {t("agent.deleteDesc", { name: agent?.name ?? "" })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmDelete(false)}
+              disabled={deleting}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? t("common.deleting") : t("common.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

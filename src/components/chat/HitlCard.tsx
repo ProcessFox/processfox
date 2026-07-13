@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { diffLines } from "diff";
 
 import { Button } from "@/components/ui/button";
+import { labelForTool } from "@/lib/toolIcons";
 import type { HitlPreview, PendingHitl } from "@/types/chat";
 
 type Props = {
@@ -35,10 +36,10 @@ export function HitlCard({ hitl, busy, onApprove, onReject }: Props) {
         <heading.Icon className="h-3.5 w-3.5 shrink-0" />
         <span className="text-sm font-medium">{heading.label}</span>
         <span
-          className="ml-auto truncate font-mono text-xs opacity-60"
-          title={`Tool: ${hitl.toolName}`}
+          className="ml-auto truncate text-xs opacity-60"
+          title={hitl.toolName}
         >
-          {hitl.toolName}
+          {labelForTool(hitl.toolName)}
         </span>
       </div>
 

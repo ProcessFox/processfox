@@ -23,7 +23,10 @@ use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 
 use super::json_cleanup::extract_json_value;
-use super::{ChatRole, FinishReason, GenerateRequest, LlmEvent, LlmProvider, TokenUsage, ToolCall};
+use super::{
+    ChatRole, FinishReason, GenerateRequest, LlmEvent, LlmProvider, TokenUsage, ToolCall,
+    MISSING_TOOL_NAME,
+};
 use crate::core::error::{CoreError, CoreResult};
 use crate::core::tool::ToolSchema;
 
@@ -584,7 +587,14 @@ fn flush_pending(pending: &mut HashMap<u32, PendingToolCall>, sink: &mpsc::Sende
         let id = pt
             .id
             .unwrap_or_else(|| format!("call_{}", uuid::Uuid::new_v4()));
-        let Some(name) = pt.name else { continue };
+        let name = pt.name.unwrap_or_else(|| {
+            tracing::warn!(
+                arguments_raw = %pt.arguments_raw,
+                "local model emitted a tool-call without a `name` field — surfacing as an \
+                 unknown-tool error tool_result instead of dropping it silently"
+            );
+            MISSING_TOOL_NAME.to_string()
+        });
         let arguments = if pt.arguments_raw.trim().is_empty() {
             JsonValue::Object(Default::default())
         } else {

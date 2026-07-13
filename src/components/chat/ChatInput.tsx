@@ -19,7 +19,6 @@ import type { Agent, AttachmentKind } from "@/types/agent";
 
 type Props = {
   disabled?: boolean;
-  disabledReason?: string;
   onSend: (text: string) => void;
   /** Bump `token` to set the input value externally (e.g. starter chips).
    *  We watch the token rather than the text so the same prompt can be
@@ -47,7 +46,6 @@ const ATTACHMENT_EXTENSIONS: Record<string, string[]> = {
 
 export function ChatInput({
   disabled,
-  disabledReason,
   onSend,
   prefill,
   agent,
@@ -76,10 +74,15 @@ export function ChatInput({
   }
 
   function handleKey(e: KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key !== "Enter") return;
+    // Enter sends, Shift+Enter inserts a newline — the convention every
+    // messenger this audience knows follows. Cmd/Ctrl+Enter keeps working
+    // for muscle memory. Skip while an IME composition is active, or Enter
+    // would send half-composed CJK input.
+    if (e.nativeEvent.isComposing) return;
+    if (e.shiftKey) return;
+    e.preventDefault();
+    handleSend();
   }
 
   // Render template left, context right, regardless of skill-list order so the
@@ -100,9 +103,9 @@ export function ChatInput({
           onKeyDown={handleKey}
           disabled={disabled}
           placeholder={
-            disabled
-              ? (disabledReason ?? t("chat.inputDisabled"))
-              : t("chat.inputPlaceholder")
+            // The banner above the input already explains *why* the chat is
+            // disabled — repeating the reason here read as a glitch.
+            disabled ? t("chat.inputDisabled") : t("chat.inputPlaceholder")
           }
           rows={3}
           className={`block w-full resize-none rounded-md bg-transparent px-3 py-2 pr-10 text-sm placeholder:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 ${

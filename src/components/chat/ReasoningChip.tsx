@@ -1,5 +1,6 @@
 import { Brain, ChevronRight, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { MessageMarkdown } from "@/components/chat/MessageMarkdown";
 import { cn } from "@/lib/utils";
@@ -12,6 +13,7 @@ type Props = {
 
 /** Collapsible chain-of-thought / reasoning chip. */
 export function ReasoningChip({ text, streaming }: Props) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const canExpand = text.trim().length > 0;
 
@@ -28,7 +30,7 @@ export function ReasoningChip({ text, streaming }: Props) {
         ) : (
           <Brain className="h-3 w-3 shrink-0" />
         )}
-        <span>{streaming ? "Denkt …" : "Gedanken"}</span>
+        <span>{streaming ? t("chat.thinking") : t("chat.reasoning")}</span>
         {canExpand && !streaming && (
           <ChevronRight
             className={cn(

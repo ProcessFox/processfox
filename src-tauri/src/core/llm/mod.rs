@@ -71,6 +71,17 @@ pub struct ToolCall {
     pub arguments: JsonValue,
 }
 
+/// Placeholder tool name used when a streaming provider (OpenAI-compat or
+/// local GGUF) finishes assembling a tool-call block without ever receiving
+/// a `name` field — e.g. a truncated stream, or a quantized local model
+/// that emits malformed function-call deltas. Previously such a call was
+/// silently dropped: no `ToolCall` event fired, nothing reached the model,
+/// and the run just looked like "no tool calls this turn" with zero signal
+/// anything went wrong. Emitting it with this name instead means
+/// `ToolRegistry::get` won't find it, so it surfaces to the model as a
+/// normal `unknown tool` error `tool_result` it can see and react to.
+pub const MISSING_TOOL_NAME: &str = "<tool-call-ohne-namen>";
+
 /// The outcome of executing a tool, paired to a prior `ToolCall` by `tool_use_id`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

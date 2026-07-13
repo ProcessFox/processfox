@@ -201,6 +201,29 @@ export function ModelsTab({ settings, onSettingsChange }: Props) {
     }
   }
 
+  const isLocalDefault = (filename: string) =>
+    settings?.defaultProvider === "local" &&
+    settings?.defaultModels?.["local"] === filename;
+
+  // Explicitly switch the app default to a local model. Before this
+  // existed the local default was only ever set implicitly on the first
+  // download and could never be changed from the UI.
+  async function makeLocalDefault(filename: string) {
+    try {
+      await settingsApi.setDefaultProvider("local");
+      const next = await settingsApi.setDefaultModel("local", filename);
+      onSettingsChange(next);
+    } catch (e) {
+      console.error("set local default failed", e);
+    }
+  }
+
+  // Models downloaded via custom URL have no catalog card — without this
+  // list they could neither be deleted nor made the default.
+  const nonCatalogInstalled = installed.filter(
+    (m) => !catalog.some((c) => c.filename === m.filename),
+  );
+
   return (
     <div className="flex flex-col gap-4 py-2">
       <HardwareBanner hardware={hardware} catalog={catalog} />
@@ -217,10 +240,12 @@ export function ModelsTab({ settings, onSettingsChange }: Props) {
               entry={entry}
               isInstalled={isInstalled}
               isRecommended={isRecommended}
+              isDefault={isLocalDefault(entry.filename)}
               download={dl}
               onDownload={() => startCatalogDownload(entry)}
               onCancel={() => cancelDownload(entry.id)}
               onDelete={() => requestDelete(entry.filename)}
+              onMakeDefault={() => makeLocalDefault(entry.filename)}
               onDismissError={() =>
                 setDownload(entry.id, { status: "idle" })
               }
@@ -228,6 +253,52 @@ export function ModelsTab({ settings, onSettingsChange }: Props) {
           );
         })}
       </div>
+
+      {nonCatalogInstalled.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="text-sm font-medium">
+            {t("models.customInstalledTitle")}
+          </div>
+          {nonCatalogInstalled.map((m) => (
+            <div
+              key={m.filename}
+              className="flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-mono text-xs" title={m.filename}>
+                  {m.filename}
+                </div>
+                <div className="mt-0.5 text-xs text-muted-foreground">
+                  {formatBytes(m.sizeBytes)}
+                </div>
+              </div>
+              {isLocalDefault(m.filename) ? (
+                <span className="shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-primary">
+                  {t("common.defaultBadge")}
+                </span>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 shrink-0 px-2 text-[11px]"
+                  onClick={() => makeLocalDefault(m.filename)}
+                >
+                  {t("common.makeDefault")}
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => requestDelete(m.filename)}
+                title={t("models.removeModel")}
+                className="h-8 w-8 shrink-0"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <CustomUrlDownload
         installedByFilename={installedByFilename}
@@ -335,19 +406,23 @@ function CatalogCard({
   entry,
   isInstalled,
   isRecommended,
+  isDefault,
   download,
   onDownload,
   onCancel,
   onDelete,
+  onMakeDefault,
   onDismissError,
 }: {
   entry: CatalogEntry;
   isInstalled: boolean;
   isRecommended: boolean;
+  isDefault: boolean;
   download: DownloadState;
   onDownload: () => void;
   onCancel: () => void;
   onDelete: () => void;
+  onMakeDefault: () => void;
   onDismissError: () => void;
 }) {
   const { t } = useTranslation();
@@ -369,6 +444,11 @@ function CatalogCard({
                 {t("models.installed")}
               </span>
             )}
+            {isDefault && (
+              <span className="rounded-sm border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-primary">
+                {t("common.defaultBadge")}
+              </span>
+            )}
           </div>
           <div className="mt-0.5 text-xs text-muted-foreground">
             {entry.vendor} · {entry.quant} · {formatBytes(entry.sizeBytes)} ·
@@ -379,17 +459,29 @@ function CatalogCard({
           </div>
         </div>
 
-        <div className="shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
           {isInstalled ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onDelete}
-              title={t("models.removeModel")}
-              className="h-8 w-8"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
+            <>
+              {!isDefault && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-[11px]"
+                  onClick={onMakeDefault}
+                >
+                  {t("common.makeDefault")}
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onDelete}
+                title={t("models.removeModel")}
+                className="h-8 w-8"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </>
           ) : download.status === "running" ||
             download.status === "starting" ? (
             <Button

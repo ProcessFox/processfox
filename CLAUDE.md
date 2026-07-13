@@ -25,7 +25,7 @@ Dieses Dokument richtet sich an Claude Code (und an alle anderen LLM-gestützten
 ## 2. Goldene Regeln
 
 1. **Einsteiger-Fokus schlägt Feature-Fülle.** Wenn eine Entscheidung zwischen "mehr können" und "einfacher bedienen" steht, gewinnt immer einfacher. Bei Zweifeln: zurück zu `CONCEPT.md` §3 "Produkt-Prinzipien".
-2. **Agent > Thread.** Es gibt keine Chat-History-Sidebar. Alles passiert in benannten Agenten. Wer eine Thread-UI vorschlägt, liegt falsch.
+2. **Agent > Thread.** Es gibt keine Chat-History-Sidebar. Alles passiert in benannten Agenten. Wer eine Thread-UI vorschlägt, liegt falsch. (Der Radiergummi „Unterhaltung zurücksetzen" neben dem Agent-Umschalter ist bewusst erlaubt — er leert den einen Verlauf des Agenten, er erzeugt keine parallelen Threads.)
 3. **Skills sind atomar.** Ein Skill tut eine Sache und kombiniert dafür Tools. Keine Meta-Skills, keine Workflow-Skills.
 4. **Ordner-Sandbox ist nicht verhandelbar.** Jeder Tool-Call MUSS im Backend prüfen, dass der Pfad im Agent-Ordner liegt. Kein Verlass auf LLM-Disziplin.
 5. **HITL ist Default für Schreibaktionen.** Ausnahme nur, wenn der Skill bewusst auf "ohne Rückfrage" konfiguriert ist.
@@ -91,8 +91,9 @@ processfox/
 │   ├── lib/
 │   │   ├── tauri.ts                # typed invoke() wrappers + event subs
 │   │   ├── i18n.ts                 # i18next-Setup
+│   │   ├── chatErrors.ts           # Fehler-Klassifizierung für den Chat-Banner
 │   │   ├── fileIcons.ts
-│   │   ├── toolIcons.ts
+│   │   ├── toolIcons.ts            # Icon- + Klartext-Label-Mapping für Tools
 │   │   ├── starterPrompts.ts
 │   │   └── utils.ts
 │   ├── locales/                    # i18next-Übersetzungen: de/en/es/fr/it/pl
@@ -202,6 +203,7 @@ processfox/
 - Trait `LlmProvider` mit async `generate(request, sink, cancel) -> CoreResult<()>`. Streamt `LlmEvent`s über einen `mpsc::Sender`, respektiert `CancellationToken`.
 - Implementierungen: `LocalGgufProvider` (llama-cpp-2), `AnthropicProvider`, `OpenAiProvider`, `OpenRouterProvider`, `CortecsProvider`, `CustomOpenAiProvider` (nutzerkonfigurierter OpenAI-kompatibler Endpoint, z. B. Ollama/vLLM). `OpenAiProvider`, `OpenRouterProvider`, `CortecsProvider` und `CustomOpenAiProvider` teilen sich die HTTP-/Streaming-Basis `OpenAiCompat` (`core/llm/openai_compat.rs`) statt jeweils eigenen Boilerplate zu implementieren — nur `CustomOpenAiProvider` setzt `include_usage = false`, weil manche selbstgehosteten Backends den Parameter ablehnen.
 - Einheitliches Event-Format: `TextDelta`, `ReasoningDelta` (für `<|channel>thought` u. ä.), `ToolCall`, `Usage(TokenUsage)`, `Finish { reason }`, `Error { code, message }`.
+- **Fehler-Anzeige im Frontend:** `Error { code, message }` wird in `src/lib/chatErrors.ts` per Message-Pattern in einsteigerfreundliche Kategorien übersetzt (auth, rateLimit, modelNotFound, context, overloaded, network; Fallback generic) — die Roh-Message bleibt hinter „Technische Details" sichtbar. Wer neue Fehlercodes oder -Message-Formate einführt, prüft die Patterns dort. `code == "cancelled"` (Nutzer-Abbruch) zeigt das Frontend bewusst **nicht** als Fehler an.
 - `supports_tools()` markiert Provider, die `request.tools` verarbeiten können — der ReAct-Loop reicht Tools nur an Provider, die das bestätigen.
 - **Lokales Modell-Lifecycle:** `LocalGgufProvider` hält ein Modell zwischen Generations geladen, entlädt es aber nach 10 min Idle automatisch (Watcher in `ensure_idle_watcher`). Wer den RAM-Bedarf debuggt oder zusätzliche Trigger zum Entladen einbaut (z. B. beim Wechsel auf Cloud-Provider), arbeitet hier — nicht den Watcher umgehen, sondern ergänzen.
 
@@ -220,6 +222,7 @@ processfox/
 - Tools sind in einer zentralen Registry registriert (`HashMap<&'static str, Arc<dyn Tool>>`).
 - `trait Tool: Send + Sync + Debug { fn name(&self) -> &'static str; fn schema(&self) -> ToolSchema; async fn execute(&self, input, ctx: &ToolContext) -> CoreResult<ToolOutput>; fn requires_approval(&self, input: &JsonValue, ctx: &ToolContext) -> Option<HitlPreview> { None } }`. `requires_approval` ist der zentrale Haken für HITL (§2 Regel 5) — Standard `None` (kein Preview nötig), Schreib-Tools überschreiben es.
 - `ToolContext` enthält Agent-ID, Agent-Ordner-Pfad, App-Handle für Events, plus `channel` (Event-Channel-Name), `tool_call_id` und `cancel: CancellationToken` für kooperatives Abbrechen von Fan-out-Tools.
+- **Frontend-Darstellung neuer Tools:** Die UI zeigt statt roher Tool-Namen lokalisierte Klartext-Labels (Tool-Chips, HITL-Karte). Jedes neue Tool braucht deshalb einen Eintrag im Icon-Mapping (`src/lib/toolIcons.ts`) **und** `tool.<name>`-Keys in allen sechs Locale-Dateien. Fehlt beides, fällt die UI auf den rohen Namen zurück (kein Fehler, aber Einsteiger-unfreundlich).
 
 ### Skill-Loading
 

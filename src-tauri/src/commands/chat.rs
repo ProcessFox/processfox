@@ -13,6 +13,20 @@ pub async fn list_messages(
     state.chat_repo().load(&agent_id).map_err(Into::into)
 }
 
+/// Reset an agent's conversation. The agent itself (folder, skills,
+/// attachments) stays untouched — only the persisted history is removed.
+#[tauri::command]
+pub async fn clear_chat_history(
+    agent_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), CommandError> {
+    // Reject unknown ids instead of silently succeeding; the UI additionally
+    // disables the action while a run is streaming so the runner doesn't
+    // keep appending to a file the user just believed to be empty.
+    state.agent_repo().get(&agent_id)?;
+    state.chat_repo().delete(&agent_id).map_err(Into::into)
+}
+
 #[tauri::command]
 pub async fn send_message(
     agent_id: String,

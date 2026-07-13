@@ -13,7 +13,10 @@ use serde_json::{json, Value as JsonValue};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use super::{ChatRole, ChatTurn, FinishReason, GenerateRequest, LlmEvent, TokenUsage, ToolCall};
+use super::{
+    ChatRole, ChatTurn, FinishReason, GenerateRequest, LlmEvent, TokenUsage, ToolCall,
+    MISSING_TOOL_NAME,
+};
 use crate::core::error::{CoreError, CoreResult};
 use crate::core::tool::ToolSchema;
 
@@ -499,8 +502,17 @@ async fn flush_pending_tool_calls(
     let mut entries: Vec<(u32, PendingToolCall)> = pending.drain().collect();
     entries.sort_by_key(|(i, _)| *i);
     for (_, pt) in entries {
-        let Some(id) = pt.id else { continue };
-        let Some(name) = pt.name else { continue };
+        let id = pt
+            .id
+            .unwrap_or_else(|| format!("call_{}", uuid::Uuid::new_v4()));
+        let name = pt.name.unwrap_or_else(|| {
+            tracing::warn!(
+                arguments_raw = %pt.arguments_raw,
+                "tool-call stream ended without a `name` field — surfacing as an \
+                 unknown-tool error tool_result instead of dropping it silently"
+            );
+            MISSING_TOOL_NAME.to_string()
+        });
         let arguments: JsonValue = if pt.arguments_raw.trim().is_empty() {
             json!({})
         } else {

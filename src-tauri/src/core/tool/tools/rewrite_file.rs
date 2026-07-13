@@ -3,9 +3,8 @@ use serde::Deserialize;
 use serde_json::{json, Value as JsonValue};
 
 use crate::core::error::{CoreError, CoreResult};
+use crate::core::sandbox::{ensure_inside_sandbox, resolve_for_preview};
 use crate::core::tool::{HitlPreview, Tool, ToolContext, ToolOutput, ToolSchema};
-
-use super::write_docx::ensure_inside_sandbox;
 
 #[derive(Debug, Default)]
 pub struct RewriteFileTool;
@@ -62,13 +61,11 @@ impl Tool for RewriteFileTool {
 
     fn requires_approval(&self, input: &JsonValue, ctx: &ToolContext) -> Option<HitlPreview> {
         let parsed: Input = serde_json::from_value(input.clone()).ok()?;
-        let resolved = ctx.agent_folder.join(&parsed.path);
-        let exists = resolved.is_file();
-        let before = if exists {
-            std::fs::read_to_string(&resolved).unwrap_or_default()
-        } else {
-            String::new()
-        };
+        let resolved = resolve_for_preview(&ctx.agent_folder, std::path::Path::new(&parsed.path));
+        let exists = resolved.is_some();
+        let before = resolved
+            .map(|p| std::fs::read_to_string(&p).unwrap_or_default())
+            .unwrap_or_default();
         Some(HitlPreview::RewriteFile {
             path: parsed.path,
             before,

@@ -3,6 +3,15 @@ import { useTranslation } from "react-i18next";
 
 import { AgentEditorDialog } from "@/components/agent/AgentEditorDialog";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { resolveAgentModel, useAgentChat } from "@/hooks/useAgentChat";
 import { Main } from "@/views/Main";
@@ -10,6 +19,7 @@ import { SettingsDialog } from "@/views/Settings";
 import { WelcomeDialog } from "@/views/Welcome";
 import {
   agentApi,
+  chatApi,
   fileApi,
   modelsApi,
   secretsApi,
@@ -57,6 +67,11 @@ function AppShell() {
   const [agentEditor, setAgentEditor] = useState<
     { mode: "create" | "edit" } | null
   >(null);
+  const [confirmClearHistory, setConfirmClearHistory] = useState(false);
+  const [clearingHistory, setClearingHistory] = useState(false);
+  const [clearHistoryError, setClearHistoryError] = useState<string | null>(
+    null,
+  );
   const [inputPrefill, setInputPrefill] = useState<
     { text: string; token: number } | undefined
   >(undefined);
@@ -241,6 +256,34 @@ function AppShell() {
     setActiveAgent((curr) => (curr && curr.id === updated.id ? updated : curr));
   }, []);
 
+  const handleAgentDeleted = useCallback(async () => {
+    const list = await refreshAgents();
+    setActiveAgent(list[0] ?? null);
+    setSelectedFile(null);
+  }, [refreshAgents]);
+
+  const handleRequestClearHistory = useCallback(() => {
+    setClearHistoryError(null);
+    setConfirmClearHistory(true);
+  }, []);
+
+  const handleConfirmClearHistory = useCallback(async () => {
+    if (!activeAgent) return;
+    setClearingHistory(true);
+    setClearHistoryError(null);
+    try {
+      await chatApi.clearMessages(activeAgent.id);
+      await chat.reloadMessages();
+      setConfirmClearHistory(false);
+    } catch (e) {
+      setClearHistoryError(
+        String((e as { message?: string })?.message ?? e),
+      );
+    } finally {
+      setClearingHistory(false);
+    }
+  }, [activeAgent, chat]);
+
   const handleSelectFile = useCallback((path: string, name: string) => {
     setSelectedFile({ path, name });
   }, []);
@@ -307,41 +350,66 @@ function AppShell() {
     setSettings(s);
   }, []);
 
-  // Compute chat disabled state and reason.
-  const { chatDisabled, chatDisabledReason } = (() => {
-    if (!activeAgent) {
-      return {
-        chatDisabled: true,
-        chatDisabledReason: t("chat.disabledNoAgent") as string | undefined,
-      };
-    }
-    if (!effectiveModel) {
-      return {
-        chatDisabled: true,
-        chatDisabledReason: t("chat.disabledNoModel"),
-      };
-    }
-    if (effectiveModel.provider === "local") {
-      const present = installedModels.some(
-        (m) => m.filename === effectiveModel.modelId,
-      );
-      if (!present) {
+  // Compute chat disabled state, reason, and the action that actually fixes
+  // it. Every reason must map to the screen where the fix lives — a generic
+  // "open settings" button sent no-agent users to the cloud-API tab.
+  type DisabledState = {
+    chatDisabled: boolean;
+    chatDisabledReason: string | undefined;
+    chatDisabledAction: { label: string; run: () => void } | undefined;
+  };
+  const { chatDisabled, chatDisabledReason, chatDisabledAction } =
+    ((): DisabledState => {
+      if (!activeAgent) {
         return {
           chatDisabled: true,
-          chatDisabledReason: t("chat.disabledModelNotInstalled", { modelId: effectiveModel.modelId }),
+          chatDisabledReason: t("chat.disabledNoAgent"),
+          chatDisabledAction: {
+            label: t("chat.actionCreateAgent"),
+            run: () => setAgentEditor({ mode: "create" }),
+          },
         };
       }
-    } else if (hasApiKey === false) {
+      if (!effectiveModel) {
+        return {
+          chatDisabled: true,
+          chatDisabledReason: t("chat.disabledNoModel"),
+          chatDisabledAction: {
+            label: t("chat.openSettings"),
+            run: () => setSettingsState({ open: true, tab: "models" }),
+          },
+        };
+      }
+      if (effectiveModel.provider === "local") {
+        const present = installedModels.some(
+          (m) => m.filename === effectiveModel.modelId,
+        );
+        if (!present) {
+          return {
+            chatDisabled: true,
+            chatDisabledReason: t("chat.disabledModelNotInstalled", { modelId: effectiveModel.modelId }),
+            chatDisabledAction: {
+              label: t("chat.openSettings"),
+              run: () => setSettingsState({ open: true, tab: "models" }),
+            },
+          };
+        }
+      } else if (hasApiKey === false) {
+        return {
+          chatDisabled: true,
+          chatDisabledReason: t("chat.disabledNoApiKey", { provider: effectiveModel.provider }),
+          chatDisabledAction: {
+            label: t("chat.openSettings"),
+            run: () => setSettingsState({ open: true, tab: "cloud" }),
+          },
+        };
+      }
       return {
-        chatDisabled: true,
-        chatDisabledReason: t("chat.disabledNoApiKey", { provider: effectiveModel.provider }),
+        chatDisabled: false,
+        chatDisabledReason: undefined,
+        chatDisabledAction: undefined,
       };
-    }
-    return {
-      chatDisabled: false,
-      chatDisabledReason: undefined as string | undefined,
-    };
-  })();
+    })();
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -359,6 +427,7 @@ function AppShell() {
         chatError={chat.error}
         chatDisabled={chatDisabled}
         chatDisabledReason={chatDisabledReason}
+        chatDisabledAction={chatDisabledAction}
         starterPrompts={starterPrompts}
         inputPrefill={inputPrefill}
         acceptsAttachments={acceptsAttachments}
@@ -368,6 +437,7 @@ function AppShell() {
         onSelectAgent={handleSelectAgent}
         onCreateAgent={handleCreateAgent}
         onEditAgent={handleEditAgent}
+        onClearHistory={handleRequestClearHistory}
         onOpenSettings={handleOpenSettings}
         onSelectFile={handleSelectFile}
         onClosePreview={handleClosePreview}
@@ -386,7 +456,43 @@ function AppShell() {
         agent={agentEditor?.mode === "edit" ? activeAgent : null}
         onClose={() => setAgentEditor(null)}
         onSaved={handleAgentSaved}
+        onDeleted={handleAgentDeleted}
       />
+
+      <Dialog
+        open={confirmClearHistory}
+        onOpenChange={(v) => !v && !clearingHistory && setConfirmClearHistory(false)}
+      >
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>{t("agent.clearHistoryTitle")}</DialogTitle>
+            <DialogDescription className="pt-2">
+              {t("agent.clearHistoryDesc", { name: activeAgent?.name ?? "" })}
+            </DialogDescription>
+          </DialogHeader>
+          {clearHistoryError && (
+            <div className="rounded-md border border-destructive/40 bg-destructive/15 px-3 py-2 text-xs text-destructive">
+              {clearHistoryError}
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmClearHistory(false)}
+              disabled={clearingHistory}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmClearHistory}
+              disabled={clearingHistory}
+            >
+              {t("common.reset")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <SettingsDialog
         open={settingsState.open}

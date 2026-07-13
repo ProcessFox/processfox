@@ -5,12 +5,10 @@ use std::collections::BTreeMap;
 use std::io::{Read, Write};
 
 use crate::core::error::{CoreError, CoreResult};
-use crate::core::sandbox::ensure_in_agent_folder;
+use crate::core::sandbox::{ensure_in_agent_folder, ensure_inside_sandbox, resolve_for_preview};
 use crate::core::tool::{
     HitlPreview, TemplateReplacement, Tool, ToolContext, ToolOutput, ToolSchema,
 };
-
-use super::write_docx::ensure_inside_sandbox;
 
 #[derive(Debug, Default)]
 pub struct WriteDocxFromTemplateTool;
@@ -136,10 +134,17 @@ impl Tool for WriteDocxFromTemplateTool {
 
     fn requires_approval(&self, input: &JsonValue, ctx: &ToolContext) -> Option<HitlPreview> {
         let parsed: Input = serde_json::from_value(input.clone()).ok()?;
-        let template_resolved = ctx.agent_folder.join(&parsed.template_path);
-        let output_resolved = ctx.agent_folder.join(&parsed.output_path);
-        let creates_file = !output_resolved.is_file();
-        let template_placeholders = collect_template_placeholders(&template_resolved);
+        let template_resolved = resolve_for_preview(
+            &ctx.agent_folder,
+            std::path::Path::new(&parsed.template_path),
+        );
+        let output_resolved =
+            resolve_for_preview(&ctx.agent_folder, std::path::Path::new(&parsed.output_path));
+        let creates_file = output_resolved.map(|p| !p.is_file()).unwrap_or(true);
+        let template_placeholders = template_resolved
+            .as_deref()
+            .map(collect_template_placeholders)
+            .unwrap_or_default();
         let replacements = parsed
             .replacements
             .iter()

@@ -232,6 +232,27 @@ function ProviderCard({
     }
   }
 
+  // Explicit default switch — without this the app default was frozen on
+  // whichever provider happened to be configured first.
+  async function makeDefault() {
+    setBusy(true);
+    setError(null);
+    try {
+      let next = await settingsApi.setDefaultProvider(meta.id);
+      if (!next.defaultModels?.[meta.id]) {
+        next = await settingsApi.setDefaultModel(
+          meta.id,
+          meta.suggestedModels[0] ?? null,
+        );
+      }
+      onSettingsChange(next);
+    } catch (e) {
+      setError(String((e as { message?: string })?.message ?? e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const isActiveDefault = settings?.defaultProvider === meta.id;
 
   return (
@@ -241,12 +262,25 @@ function ProviderCard({
           <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
           <div className="text-sm font-medium">{meta.label}</div>
           {isActiveDefault && (
-            <span className="rounded-sm border border-border bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-              Default
+            <span className="rounded-sm border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-primary">
+              {t("common.defaultBadge")}
             </span>
           )}
         </div>
-        <StatusBadge status={status} onRevalidate={validate} />
+        <div className="flex items-center gap-2">
+          {!isActiveDefault && status.state === "valid" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 text-[11px]"
+              onClick={makeDefault}
+              disabled={busy}
+            >
+              {t("common.makeDefault")}
+            </Button>
+          )}
+          <StatusBadge status={status} onRevalidate={validate} />
+        </div>
       </div>
 
       <div className="mt-3 flex flex-col gap-3">
@@ -485,6 +519,19 @@ function CustomProviderCard({
     }
   }
 
+  async function makeDefault() {
+    setBusy(true);
+    setError(null);
+    try {
+      const next = await settingsApi.setDefaultProvider("custom");
+      onSettingsChange(next);
+    } catch (e) {
+      setError(String((e as { message?: string })?.message ?? e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const isActiveDefault = settings?.defaultProvider === "custom";
 
   return (
@@ -494,12 +541,25 @@ function CustomProviderCard({
           <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
           <div className="text-sm font-medium">{t("cloudApi.customTitle")}</div>
           {isActiveDefault && (
-            <span className="rounded-sm border border-border bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-              Default
+            <span className="rounded-sm border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-primary">
+              {t("common.defaultBadge")}
             </span>
           )}
         </div>
-        <StatusBadge status={status} onRevalidate={validate} />
+        <div className="flex items-center gap-2">
+          {!isActiveDefault && status.state === "valid" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 text-[11px]"
+              onClick={makeDefault}
+              disabled={busy}
+            >
+              {t("common.makeDefault")}
+            </Button>
+          )}
+          <StatusBadge status={status} onRevalidate={validate} />
+        </div>
       </div>
 
       <div className="mt-3 flex flex-col gap-3">

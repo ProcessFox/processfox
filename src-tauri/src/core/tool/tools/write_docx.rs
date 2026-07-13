@@ -4,6 +4,7 @@ use serde::Deserialize;
 use serde_json::{json, Value as JsonValue};
 
 use crate::core::error::{CoreError, CoreResult};
+use crate::core::sandbox::{ensure_inside_sandbox, resolve_for_preview};
 use crate::core::tool::{HitlPreview, Tool, ToolContext, ToolOutput, ToolSchema};
 
 #[derive(Debug, Default)]
@@ -169,31 +170,6 @@ pub(super) fn render_preview_text(blocks: &[Block]) -> String {
     out.trim_end().to_string()
 }
 
-pub(super) fn ensure_inside_sandbox(
-    agent_folder: &std::path::Path,
-    requested: &std::path::Path,
-) -> CoreResult<std::path::PathBuf> {
-    let mut candidate = agent_folder.to_path_buf();
-    candidate.push(requested);
-    let parent = candidate
-        .parent()
-        .ok_or_else(|| CoreError::PathInvalid(requested.display().to_string()))?;
-    std::fs::create_dir_all(parent)?;
-    let canon_parent = parent
-        .canonicalize()
-        .map_err(|e| CoreError::PathInvalid(e.to_string()))?;
-    let canon_root = agent_folder
-        .canonicalize()
-        .map_err(|e| CoreError::PathInvalid(e.to_string()))?;
-    if !canon_parent.starts_with(&canon_root) {
-        return Err(CoreError::PathOutsideAgentFolder);
-    }
-    let filename = candidate
-        .file_name()
-        .ok_or_else(|| CoreError::PathInvalid(requested.display().to_string()))?;
-    Ok(canon_parent.join(filename))
-}
-
 #[async_trait]
 impl Tool for WriteDocxTool {
     fn name(&self) -> &'static str {
@@ -233,8 +209,10 @@ impl Tool for WriteDocxTool {
         let parsed: Input = serde_json::from_value(input.clone()).ok()?;
         let blocks = parse_blocks(&parsed.content);
         let preview_text = render_preview_text(&blocks);
-        let resolved = ctx.agent_folder.join(&parsed.path);
-        let creates_file = !resolved.is_file();
+        let creates_file =
+            resolve_for_preview(&ctx.agent_folder, std::path::Path::new(&parsed.path))
+                .map(|p| !p.is_file())
+                .unwrap_or(true);
         Some(HitlPreview::WriteDocx {
             path: parsed.path,
             block_count: blocks.len(),

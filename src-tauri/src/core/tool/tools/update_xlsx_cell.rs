@@ -3,9 +3,8 @@ use serde::Deserialize;
 use serde_json::{json, Value as JsonValue};
 
 use crate::core::error::{CoreError, CoreResult};
+use crate::core::sandbox::{ensure_inside_sandbox, resolve_for_preview};
 use crate::core::tool::{CellChange, HitlPreview, Tool, ToolContext, ToolOutput, ToolSchema};
-
-use super::write_docx::ensure_inside_sandbox;
 
 #[derive(Debug, Default)]
 pub struct UpdateXlsxCellTool;
@@ -126,11 +125,14 @@ impl Tool for UpdateXlsxCellTool {
         if parsed.changes.is_empty() {
             return None;
         }
-        let resolved = ctx.agent_folder.join(&parsed.path);
-        if !resolved.is_file() {
-            // The HITL preview can't show before-values for a non-existent
-            // file. Surface a synthetic preview so the user still sees what
-            // would happen, then `execute` will fail cleanly.
+        let Some(resolved) =
+            resolve_for_preview(&ctx.agent_folder, std::path::Path::new(&parsed.path))
+        else {
+            // Not resolvable inside the sandbox — missing, or outside the
+            // agent folder entirely. The HITL preview can't show
+            // before-values in that case either way. Surface a synthetic
+            // preview so the user still sees what would happen; `execute`
+            // enforces the real boundary/existence check and fails cleanly.
             let changes = parsed
                 .changes
                 .iter()
@@ -145,7 +147,7 @@ impl Tool for UpdateXlsxCellTool {
                 sheet: parsed.sheet.unwrap_or_else(|| "(file missing)".into()),
                 changes,
             });
-        }
+        };
 
         let cell_refs: Vec<String> = parsed.changes.iter().map(|c| c.cell.clone()).collect();
         let (sheet_name, before_pairs) =

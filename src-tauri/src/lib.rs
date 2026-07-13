@@ -148,6 +148,7 @@ pub fn run() {
             commands::secrets::clear_api_key,
             commands::secrets::validate_api_key,
             commands::chat::list_messages,
+            commands::chat::clear_chat_history,
             commands::chat::send_message,
             commands::chat::cancel_run,
             commands::chat::approve_hitl,

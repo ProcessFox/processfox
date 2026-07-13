@@ -194,6 +194,11 @@ export const chatApi = {
   listMessages: (agentId: string) =>
     invoke<ChatMessage[]>("list_messages", { agentId }),
 
+  /** Reset an agent's conversation — deletes the persisted history only;
+   *  the agent itself stays untouched. */
+  clearMessages: (agentId: string) =>
+    invoke<void>("clear_chat_history", { agentId }),
+
   sendMessage: (params: {
     agentId: string;
     provider: string;

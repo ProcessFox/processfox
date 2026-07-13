@@ -3,9 +3,8 @@ use serde::Deserialize;
 use serde_json::{json, Value as JsonValue};
 
 use crate::core::error::{CoreError, CoreResult};
+use crate::core::sandbox::{ensure_inside_sandbox, resolve_for_preview};
 use crate::core::tool::{HitlPreview, Tool, ToolContext, ToolOutput, ToolSchema};
-
-use super::write_docx::ensure_inside_sandbox;
 
 #[derive(Debug, Default)]
 pub struct WriteXlsxTool;
@@ -80,8 +79,10 @@ impl Tool for WriteXlsxTool {
 
     fn requires_approval(&self, input: &JsonValue, ctx: &ToolContext) -> Option<HitlPreview> {
         let parsed: Input = serde_json::from_value(input.clone()).ok()?;
-        let resolved = ctx.agent_folder.join(&parsed.path);
-        let creates_file = !resolved.is_file();
+        let creates_file =
+            resolve_for_preview(&ctx.agent_folder, std::path::Path::new(&parsed.path))
+                .map(|p| !p.is_file())
+                .unwrap_or(true);
         Some(HitlPreview::WriteXlsx {
             path: parsed.path,
             sheet: sheet_or_default(parsed.sheet.as_deref()).to_string(),

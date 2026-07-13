@@ -49,10 +49,13 @@ export function AskUserCard({ question, busy, onRespond }: Props) {
         rows={3}
         className="min-h-16 text-xs"
         onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault();
-            submit();
-          }
+          // Same send semantics as the main chat input: Enter sends,
+          // Shift+Enter breaks the line, IME composition is left alone.
+          if (e.key !== "Enter") return;
+          if (e.nativeEvent.isComposing) return;
+          if (e.shiftKey) return;
+          e.preventDefault();
+          submit();
         }}
       />
 

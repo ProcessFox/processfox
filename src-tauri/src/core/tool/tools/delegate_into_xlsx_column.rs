@@ -8,12 +8,11 @@ use tauri::{Emitter, Manager};
 use crate::core::chat::run::RunEvent;
 use crate::core::error::{CoreError, CoreResult};
 use crate::core::llm::TokenUsage;
+use crate::core::sandbox::{ensure_inside_sandbox, resolve_for_preview};
 use crate::core::tool::{
     DelegationSamplePrompt, HitlPreview, Tool, ToolContext, ToolOutput, ToolSchema,
 };
 use crate::state::AppState;
-
-use super::write_docx::ensure_inside_sandbox;
 
 const SAMPLE_PROMPT_COUNT: usize = 3;
 
@@ -118,7 +117,8 @@ impl Tool for DelegateIntoXlsxColumnTool {
 
     fn requires_approval(&self, input: &JsonValue, ctx: &ToolContext) -> Option<HitlPreview> {
         let parsed: Input = serde_json::from_value(input.clone()).ok()?;
-        let resolved_path = ctx.agent_folder.join(&parsed.path);
+        let resolved_path =
+            resolve_for_preview(&ctx.agent_folder, std::path::Path::new(&parsed.path))?;
         if !resolved_path.is_file() {
             return None;
         }

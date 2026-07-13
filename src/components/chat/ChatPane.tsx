@@ -1,11 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, Check, Copy, Loader2, Square, X } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  ChevronRight,
+  Copy,
+  Loader2,
+  Square,
+  X,
+} from "lucide-react";
 
 import { AskUserCard } from "@/components/chat/AskUserCard";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { fileApi } from "@/lib/tauri";
 import type { StarterPrompt } from "@/lib/starterPrompts";
+import {
+  chatErrorI18nKey,
+  chatErrorWantsSettings,
+  classifyChatError,
+  type ChatError,
+} from "@/lib/chatErrors";
 import { HitlCard } from "@/components/chat/HitlCard";
 import { MessageMarkdown } from "@/components/chat/MessageMarkdown";
 import { ReasoningChip } from "@/components/chat/ReasoningChip";
@@ -23,9 +37,12 @@ type Props = {
   pendingHitl: PendingHitl | null;
   pendingQuestion: PendingQuestion | null;
   sending: boolean;
-  error: string | null;
+  error: ChatError | null;
   disabled?: boolean;
   disabledReason?: string;
+  /** Action that actually fixes the disabled reason (create an agent, open
+   *  the right settings tab, …) — shown as the banner's button. */
+  disabledAction?: { label: string; run: () => void };
   starterPrompts?: StarterPrompt[];
   inputPrefill?: { text: string; token: number };
   agent?: Agent | null;
@@ -53,6 +70,7 @@ export function ChatPane({
   error,
   disabled,
   disabledReason,
+  disabledAction,
   starterPrompts,
   inputPrefill,
   agent,
@@ -68,13 +86,31 @@ export function ChatPane({
   onDismissError,
   onOpenSettings,
 }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Follow the stream only while the user is parked at the bottom. Once
+  // they scroll up to re-read something, new deltas must not yank them
+  // back down; returning near the bottom re-engages following.
+  const stickToBottomRef = useRef(true);
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages.length, streamingText, pendingTools.length]);
+    if (el && stickToBottomRef.current) el.scrollTop = el.scrollHeight;
+  }, [messages.length, streamingText, streamingReasoning, pendingTools.length]);
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stickToBottomRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  };
+
+  const handleSend = (text: string) => {
+    // Sending implies "show me the reply" — re-engage following even if
+    // the user had scrolled up before.
+    stickToBottomRef.current = true;
+    onSend(text);
+  };
 
   const showEmpty =
     messages.length === 0 &&
@@ -88,7 +124,11 @@ export function ChatPane({
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto px-4 py-4"
+      >
         {showEmpty ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
             <div className="text-sm font-medium">{t("chat.emptyTitle")}</div>
@@ -118,13 +158,23 @@ export function ChatPane({
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {visibleMessages.map((m) => (
-              <MessageBlock
-                key={m.id}
-                message={m}
-                toolResults={findToolResults(m, messages)}
-              />
-            ))}
+            {visibleMessages.map((m, i) => {
+              const divider = dividerLabelBetween(
+                visibleMessages[i - 1],
+                m,
+                t,
+                i18n.language,
+              );
+              return (
+                <div key={m.id} className="flex flex-col gap-3">
+                  {divider && <DateDivider label={divider} />}
+                  <MessageBlock
+                    message={m}
+                    toolResults={findToolResults(m, messages)}
+                  />
+                </div>
+              );
+            })}
 
             {streamingReasoning !== null &&
               streamingReasoning.length > 0 && (
@@ -169,23 +219,11 @@ export function ChatPane({
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 border-t border-destructive/30 bg-destructive/15 px-4 py-2 text-xs text-destructive">
-          <div className="flex-1">{error}</div>
-          <button
-            onClick={() => fileApi.openLogsFolder().catch(() => {})}
-            className="shrink-0 rounded-sm border border-destructive/40 bg-destructive/15 px-2 py-0.5 text-xs hover:bg-destructive/20"
-            title={t("chat.openLogsInFinder")}
-          >
-            {t("chat.openLogs")}
-          </button>
-          <button
-            onClick={onDismissError}
-            className="text-destructive/70 hover:text-destructive"
-            title={t("common.close")}
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        <ErrorBanner
+          error={error}
+          onOpenSettings={onOpenSettings}
+          onDismiss={onDismissError}
+        />
       )}
 
       {sending && (
@@ -211,12 +249,12 @@ export function ChatPane({
         <div className="flex items-start gap-2 border-t border-amber-500/40 bg-amber-500/15 px-4 py-2 text-xs text-amber-800 dark:text-amber-200">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <div className="flex-1">{disabledReason}</div>
-          {onOpenSettings && (
+          {disabledAction && (
             <button
-              onClick={onOpenSettings}
+              onClick={disabledAction.run}
               className="shrink-0 rounded-sm border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-xs hover:bg-amber-500/20"
             >
-              {t("chat.openSettings")}
+              {disabledAction.label}
             </button>
           )}
         </div>
@@ -224,14 +262,118 @@ export function ChatPane({
 
       <ChatInput
         disabled={disabled || sending}
-        disabledReason={disabledReason}
-        onSend={onSend}
+        onSend={handleSend}
         prefill={inputPrefill}
         agent={agent ?? null}
         acceptsAttachments={acceptsAttachments}
         onAgentUpdated={onAgentUpdated}
         footer={footer}
       />
+    </div>
+  );
+}
+
+/** Friendly error strip above the input. Beginners get a plain-language
+ *  summary and a matching action; the raw provider payload stays reachable
+ *  behind a collapsed "details" toggle for bug reports. */
+function ErrorBanner({
+  error,
+  onOpenSettings,
+  onDismiss,
+}: {
+  error: ChatError;
+  onOpenSettings?: () => void;
+  onDismiss: () => void;
+}) {
+  const { t } = useTranslation();
+  const kind = classifyChatError(error);
+  return (
+    <div className="flex items-start gap-2 border-t border-destructive/30 bg-destructive/15 px-4 py-2 text-xs text-destructive">
+      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <div>{t(chatErrorI18nKey(kind))}</div>
+        <details className="group mt-1">
+          <summary className="flex cursor-pointer list-none items-center gap-1 opacity-70 hover:opacity-100 [&::-webkit-details-marker]:hidden">
+            <ChevronRight className="h-3 w-3 shrink-0 transition-transform group-open:rotate-90" />
+            {t("errors.details")}
+          </summary>
+          <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded-sm bg-background/40 p-1.5 font-mono text-[11px]">
+            {error.code ? `${error.code}: ${error.message}` : error.message}
+          </pre>
+        </details>
+      </div>
+      {chatErrorWantsSettings(kind) && onOpenSettings && (
+        <button
+          onClick={onOpenSettings}
+          className="shrink-0 rounded-sm border border-destructive/40 bg-destructive/15 px-2 py-0.5 text-xs hover:bg-destructive/20"
+        >
+          {t("chat.openSettings")}
+        </button>
+      )}
+      <button
+        onClick={() => fileApi.openLogsFolder().catch(() => {})}
+        className="shrink-0 rounded-sm border border-destructive/40 bg-destructive/15 px-2 py-0.5 text-xs hover:bg-destructive/20"
+        title={t("chat.openLogsInFinder")}
+      >
+        {t("chat.openLogs")}
+      </button>
+      <button
+        onClick={onDismiss}
+        className="text-destructive/70 hover:text-destructive"
+        title={t("common.close")}
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+/** Label for a date divider between two adjacent messages, or null when
+ *  none is needed. The very first message only gets a divider when it is
+ *  older than today — an all-fresh chat shouldn't start with "Today". */
+function dividerLabelBetween(
+  prev: ChatMessage | undefined,
+  curr: ChatMessage,
+  t: (key: string) => string,
+  locale: string,
+): string | null {
+  const currDay = new Date(curr.createdAt).toDateString();
+  if (prev) {
+    if (new Date(prev.createdAt).toDateString() === currDay) return null;
+  } else if (currDay === new Date().toDateString()) {
+    return null;
+  }
+  return dayLabel(curr.createdAt, t, locale);
+}
+
+function dayLabel(
+  iso: string,
+  t: (key: string) => string,
+  locale: string,
+): string {
+  const d = new Date(iso);
+  const startOfDay = (x: Date) =>
+    new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round(
+    (startOfDay(new Date()) - startOfDay(d)) / 86_400_000,
+  );
+  if (diffDays === 0) return t("chat.today");
+  if (diffDays === 1) return t("chat.yesterday");
+  return d.toLocaleDateString(locale, {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function DateDivider({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 py-1">
+      <div className="h-px flex-1 bg-border" />
+      <span className="shrink-0 text-[11px] text-muted-foreground">
+        {label}
+      </span>
+      <div className="h-px flex-1 bg-border" />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { ChatError } from "@/lib/chatErrors";
 import { chatApi } from "@/lib/tauri";
 import type { Agent } from "@/types/agent";
 import type { ChatMessage, PendingHitl, PendingQuestion } from "@/types/chat";
@@ -71,7 +72,7 @@ export function useAgentChat(
   const [pendingHitl, setPendingHitl] = useState<PendingHitl | null>(null);
   const [pendingQuestion, setPendingQuestion] =
     useState<PendingQuestion | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ChatError | null>(null);
 
   const streamRef = useRef<StreamState | null>(null);
   const unlistenRef = useRef<(() => void) | null>(null);
@@ -105,13 +106,19 @@ export function useAgentChat(
         if (!cancelled) setMessages(msgs);
       })
       .catch((e) => {
-        if (!cancelled)
-          setError(String((e as { message?: string })?.message ?? e));
+        if (!cancelled) setError(toChatError(e));
       });
     return () => {
       cancelled = true;
     };
   }, [agent, resetStream]);
+
+  /** Re-fetch the persisted history, e.g. after the user reset the
+   *  conversation from the sidebar. */
+  const reloadMessages = useCallback(async () => {
+    if (!agent) return;
+    setMessages(await chatApi.listMessages(agent.id));
+  }, [agent]);
 
   const send = useCallback(
     async (text: string) => {
@@ -143,7 +150,7 @@ export function useAgentChat(
         setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
         setSending(false);
         setStreamingText(null);
-        setError(String((e as { message?: string })?.message ?? e));
+        setError(toChatError(e));
         return;
       }
 
@@ -300,7 +307,12 @@ export function useAgentChat(
               resetStream();
               break;
             case "error":
-              setError(`${event.code}: ${event.message}`);
+              // A user-initiated cancel is not an error — surfacing it as a
+              // red banner made people hunt for a problem they caused
+              // deliberately two seconds earlier.
+              if (event.code !== "cancelled") {
+                setError({ code: event.code, message: event.message });
+              }
               chatApi
                 .listMessages(agent.id)
                 .then(setMessages)
@@ -312,7 +324,7 @@ export function useAgentChat(
         unlistenRef.current = unlisten;
       } catch (e) {
         resetStream();
-        setError(String((e as { message?: string })?.message ?? e));
+        setError(toChatError(e));
       }
     },
     [agent, effectiveModel, sending, resetStream],
@@ -384,6 +396,22 @@ export function useAgentChat(
     approveHitl,
     rejectHitl,
     respondToQuestion,
+    reloadMessages,
     clearError: () => setError(null),
   } as const;
+}
+
+/** Normalize an unknown thrown value (usually a serialized `CommandError`
+ *  with `code`/`message`) into the shape the error banner classifies. */
+function toChatError(e: unknown): ChatError {
+  if (typeof e === "object" && e !== null) {
+    const obj = e as { code?: unknown; message?: unknown };
+    if (typeof obj.message === "string") {
+      return {
+        code: typeof obj.code === "string" ? obj.code : null,
+        message: obj.message,
+      };
+    }
+  }
+  return { code: null, message: String(e) };
 }

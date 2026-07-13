@@ -4,7 +4,7 @@ use serde_json::{json, Value as JsonValue};
 use std::io::Write;
 
 use crate::core::error::{CoreError, CoreResult};
-use crate::core::sandbox::ensure_in_agent_folder;
+use crate::core::sandbox::{ensure_inside_sandbox, resolve_for_preview};
 use crate::core::tool::{HitlPreview, Tool, ToolContext, ToolOutput, ToolSchema};
 
 #[derive(Debug, Default)]
@@ -77,10 +77,9 @@ impl Tool for AppendToMdTool {
 
     fn requires_approval(&self, input: &JsonValue, ctx: &ToolContext) -> Option<HitlPreview> {
         let parsed: Input = serde_json::from_value(input.clone()).ok()?;
-        let rel = std::path::PathBuf::from(&parsed.path);
-        let resolved = ctx.agent_folder.join(&rel);
-        let exists = resolved.is_file();
-        let existing_tail = if exists { read_tail(&resolved) } else { None };
+        let resolved = resolve_for_preview(&ctx.agent_folder, std::path::Path::new(&parsed.path));
+        let exists = resolved.is_some();
+        let existing_tail = resolved.as_deref().and_then(read_tail);
         Some(HitlPreview::AppendToFile {
             path: parsed.path,
             content: parsed.content,
@@ -92,36 +91,8 @@ impl Tool for AppendToMdTool {
     async fn execute(&self, input: JsonValue, ctx: &ToolContext) -> CoreResult<ToolOutput> {
         let parsed: Input = serde_json::from_value(input).map_err(CoreError::from)?;
 
-        // Resolve the target path inside the sandbox. If the file doesn't
-        // exist yet, sandbox-check the parent folder + filename instead.
         let rel = std::path::PathBuf::from(&parsed.path);
-        let target = match ensure_in_agent_folder(&ctx.agent_folder, &rel) {
-            Ok(p) => p,
-            Err(_) => {
-                // Likely the file doesn't exist yet. Make sure the parent
-                // does and that joined path stays inside the sandbox.
-                let mut candidate = ctx.agent_folder.clone();
-                candidate.push(&rel);
-                let parent = candidate
-                    .parent()
-                    .ok_or_else(|| CoreError::PathInvalid(parsed.path.clone()))?;
-                std::fs::create_dir_all(parent)?;
-                let canon_parent = parent
-                    .canonicalize()
-                    .map_err(|e| CoreError::PathInvalid(e.to_string()))?;
-                let canon_root = ctx
-                    .agent_folder
-                    .canonicalize()
-                    .map_err(|e| CoreError::PathInvalid(e.to_string()))?;
-                if !canon_parent.starts_with(&canon_root) {
-                    return Err(CoreError::PathOutsideAgentFolder);
-                }
-                let filename = candidate
-                    .file_name()
-                    .ok_or_else(|| CoreError::PathInvalid(parsed.path.clone()))?;
-                canon_parent.join(filename)
-            }
-        };
+        let target = ensure_inside_sandbox(&ctx.agent_folder, &rel)?;
 
         let separator = parsed.separator.as_deref().unwrap_or("\n\n");
         let already_exists = target.exists();

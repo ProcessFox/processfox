@@ -4,12 +4,12 @@ use serde::Deserialize;
 use serde_json::{json, Value as JsonValue};
 
 use crate::core::error::{CoreError, CoreResult};
+use crate::core::sandbox::{ensure_inside_sandbox, resolve_for_preview};
 use crate::core::tool::{HitlPreview, Tool, ToolContext, ToolOutput, ToolSchema};
 
 use super::read_docx::extract_docx_text;
 use super::write_docx::{
-    append_blocks_to_docx, ensure_inside_sandbox, new_docx_with_heading_styles, parse_blocks,
-    render_preview_text,
+    append_blocks_to_docx, new_docx_with_heading_styles, parse_blocks, render_preview_text,
 };
 
 #[derive(Debug, Default)]
@@ -78,13 +78,9 @@ impl Tool for AppendToDocxTool {
         let parsed: Input = serde_json::from_value(input.clone()).ok()?;
         let blocks = parse_blocks(&parsed.content);
         let preview_text = render_preview_text(&blocks);
-        let resolved = ctx.agent_folder.join(&parsed.path);
-        let exists = resolved.is_file();
-        let existing_tail = if exists {
-            read_docx_tail(&resolved)
-        } else {
-            None
-        };
+        let resolved = resolve_for_preview(&ctx.agent_folder, std::path::Path::new(&parsed.path));
+        let exists = resolved.is_some();
+        let existing_tail = resolved.as_deref().and_then(read_docx_tail);
         Some(HitlPreview::AppendToDocx {
             path: parsed.path,
             block_count: blocks.len(),

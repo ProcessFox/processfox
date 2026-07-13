@@ -46,7 +46,13 @@ pub async fn update_agent(
 #[tauri::command]
 pub async fn delete_agent(id: String, state: State<'_, AppState>) -> Result<(), CommandError> {
     let repo = state.agent_repo();
-    repo.delete(&id).map_err(Into::into)
+    repo.delete(&id)?;
+    // The chat history is useless without its agent; drop it best-effort so
+    // a locked/missing file can't resurrect an already-deleted agent's data.
+    if let Err(e) = state.chat_repo().delete(&id) {
+        tracing::warn!(agent_id = %id, error = %e, "chat history cleanup after agent delete failed");
+    }
+    Ok(())
 }
 
 /// Set or clear an agent's attachment for a given kind. `path = None` clears.

@@ -7,21 +7,6 @@ Versionsschema: [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
-### Added
-- **Workspace-Orientierung im System-Prompt.** Der Agent sieht pro
-  User-Turn ein begrenztes, datiertes Inventar seines Ordners (`## Workspace`,
-  eingerückter Baum mit Größe + Änderungsdatum). Damit beantwortet er Fragen
-  über „das Projekt", ein Thema oder einen Zeitraum nicht mehr aus einer
-  einzelnen schon im Kontext liegenden Datei, sondern sichtet erst die
-  passenden Dokumente. Tiefe und Eintragszahl sind gedeckelt; Symlinks und
-  Junk-Dateien bleiben außen vor.
-- **Gründlichkeits-Regel im System-Prompt.** Eine immer vorhandene,
-  modellunabhängige Zeile weist den Agenten an, bei Fragen zu Dateien,
-  Thema, Projekt oder Zeitraum erst Belege zu sammeln (Workspace sichten,
-  relevante Dokumente lesen), nicht aus einer einzelnen Datei zu antworten
-  (außer benannt) und nach jedem Lesen zu prüfen, ob die Informationslage
-  reicht — sonst weitersuchen statt vorschnell zu antworten.
-
 ### Offen / Geplant
 - **Zwischen-Reasoning in den nächsten Request zurückspeisen.** Aktuell wird
   das pro ReAct-Iteration extrahierte `reasoning` zwar persistiert, aber bei
@@ -146,6 +131,65 @@ beschrieben, dass er ohne weiteren Kontext umsetzbar ist. Referenzen als
   getestet (`core/chat/run.rs:1200-1532`).
 - `core/chat/repo.rs` (JSONL-Persistenz) ist komplett ungetestet
   (Append/Load-Roundtrip, korrupte Zeilen werden übersprungen).
+
+## [0.2.0] — 2026-07-13
+
+### Added
+- **Workspace-Orientierung im System-Prompt.** Der Agent sieht pro
+  User-Turn ein begrenztes, datiertes Inventar seines Ordners (`## Workspace`,
+  eingerückter Baum mit Größe + Änderungsdatum). Damit beantwortet er Fragen
+  über „das Projekt", ein Thema oder einen Zeitraum nicht mehr aus einer
+  einzelnen schon im Kontext liegenden Datei, sondern sichtet erst die
+  passenden Dokumente. Tiefe und Eintragszahl sind gedeckelt; Symlinks und
+  Junk-Dateien bleiben außen vor.
+- **Gründlichkeits-Regel im System-Prompt.** Eine immer vorhandene,
+  modellunabhängige Zeile weist den Agenten an, bei Fragen zu Dateien,
+  Thema, Projekt oder Zeitraum erst Belege zu sammeln (Workspace sichten,
+  relevante Dokumente lesen), nicht aus einer einzelnen Datei zu antworten
+  (außer benannt) und nach jedem Lesen zu prüfen, ob die Informationslage
+  reicht — sonst weitersuchen statt vorschnell zu antworten.
+- **Agent löschen.** Der Agent-Editor bietet im Bearbeiten-Modus einen
+  Lösch-Button mit Bestätigungsdialog; das Backend räumt den zugehörigen
+  Chat-Verlauf mit ab (`delete_agent` + `ChatRepo::delete`).
+- **Unterhaltung zurücksetzen.** Neuer Radiergummi-Button neben dem
+  Agent-Umschalter leert den persistierten Verlauf eines Agenten
+  (Bestätigungsdialog, neuer Command `clear_chat_history`). Dateien und
+  Agent-Konfiguration bleiben unberührt.
+- **Standard-Provider/-Modell umschaltbar.** „Als Standard verwenden"-Aktionen
+  auf allen Cloud-Provider-Karten und lokalen Modell-Karten; neue Liste
+  „Weitere installierte Modelle" für Custom-URL-Downloads (vorher weder
+  löschbar noch als Standard wählbar). Vorher war der Default nach dem
+  ersten Setup faktisch eingefroren.
+- **Icon-Picker im Agent-Editor.** 16 kuratierte Icons; bisher gab es das
+  `icon`-Feld nur im Datenmodell, jeder Agent blieb „Bot".
+- **Datums-Trenner im Chat** („Heute", „Gestern", Datum) zwischen Nachrichten
+  verschiedener Tage.
+- **Freundliche Fehlermeldungen im Chat.** Provider-Fehler werden in
+  verständliche Kategorien übersetzt (API-Key, Rate-Limit, Modell nicht
+  gefunden, Kontext zu lang, überlastet, Netzwerk) mit passender Aktion;
+  Roh-Fehler bleibt hinter „Technische Details" erreichbar. Nutzer-Abbruch
+  erscheint nicht mehr als Fehler.
+- **Klartext-Tool-Labels.** Tool-Chips und HITL-Karte zeigen lokalisierte
+  Labels („Datei lesen") statt roher Tool-Namen; der rohe Name bleibt als
+  Tooltip.
+
+### Changed
+- **Enter sendet** (Shift+Enter = neue Zeile, IME-sicher) im Chat-Eingabefeld
+  und in der Agent-Rückfrage-Karte; ⌘/Ctrl+Enter funktioniert weiterhin.
+- **Auto-Scroll folgt nur noch am Ende.** Wer während des Streamings
+  hochscrollt, wird nicht mehr ans Ende gezogen.
+- **Sidebar-Kopfzeile entzerrt.** Agent-Bearbeiten ist jetzt ein Stift statt
+  eines zweiten Zahnrads; die App-Einstellungen sitzen unten in der Sidebar.
+- **Banner-Aktion passt zum Grund.** „Kein Agent" → Agent anlegen,
+  „Modell fehlt" → Modelle-Tab, „API-Key fehlt" → Cloud-Tab (vorher immer
+  Cloud-Tab).
+- **Erweiterte Agent-Optionen eingeklappt.** „Schreiben ohne Rückfrage" und
+  „Hintergrund-Worker" liegen hinter „Erweitert"; aktivierte HITL-Umgehung
+  wird amber hervorgehoben und der Abschnitt öffnet dann automatisch.
+- Diverse hartkodierte UI-Strings (Reasoning-Chip, Tool-Chip-Detailfelder,
+  „Override", „Default"-Badge) laufen jetzt über i18n; HTML-Titel der App
+  von „Tauri + React + Typescript" auf „ProcessFox" korrigiert; doppelte
+  Deaktiviert-Meldung (Banner + Placeholder) entfernt.
 
 ## [0.1.1] — 2026-05-16
 

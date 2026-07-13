@@ -1,4 +1,4 @@
-import { ChevronsUpDown, Plus, Settings, Settings2 } from "lucide-react";
+import { ChevronsUpDown, Eraser, Pencil, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -16,19 +16,23 @@ import type { Agent } from "@/types/agent";
 type Props = {
   agents: Agent[];
   activeAgent: Agent | null;
+  /** Disabled while a run is streaming — clearing mid-run would race the
+   *  runner, which keeps appending to the file being deleted. */
+  canClearHistory: boolean;
   onSelect: (agent: Agent) => void;
   onCreate: () => void;
   onEdit: () => void;
-  onOpenSettings: () => void;
+  onClearHistory: () => void;
 };
 
 export function AgentSwitcher({
   agents,
   activeAgent,
+  canClearHistory,
   onSelect,
   onCreate,
   onEdit,
-  onOpenSettings,
+  onClearHistory,
 }: Props) {
   const { t } = useTranslation();
   return (
@@ -88,16 +92,17 @@ export function AgentSwitcher({
         disabled={!activeAgent}
         title={t("agent.editAgent")}
       >
-        <Settings2 className="h-3.5 w-3.5" />
+        <Pencil className="h-3.5 w-3.5" />
       </Button>
       <Button
         variant="ghost"
         size="icon"
         className="h-8 w-8 shrink-0"
-        onClick={onOpenSettings}
-        title={t("settings.title")}
+        onClick={onClearHistory}
+        disabled={!activeAgent || !canClearHistory}
+        title={t("agent.clearHistory")}
       >
-        <Settings className="h-3.5 w-3.5" />
+        <Eraser className="h-3.5 w-3.5" />
       </Button>
     </div>
   );

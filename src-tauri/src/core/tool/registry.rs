@@ -20,10 +20,12 @@ impl ToolRegistry {
     }
 
     pub fn get(&self, name: &str) -> CoreResult<Arc<dyn Tool>> {
-        self.tools
-            .get(name)
-            .cloned()
-            .ok_or_else(|| CoreError::Llm(format!("Unbekanntes Tool: {name}")))
+        self.tools.get(name).cloned().ok_or_else(|| {
+            CoreError::Llm(format!(
+                "Unbekanntes Tool: '{name}'. Verfügbare Tools: {}",
+                self.names().join(", ")
+            ))
+        })
     }
 
     pub fn names(&self) -> Vec<&'static str> {

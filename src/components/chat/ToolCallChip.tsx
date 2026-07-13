@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { AlertTriangle, Check, ChevronRight, Loader2 } from "lucide-react";
 
 import type { DelegationProgress } from "@/hooks/useAgentChat";
-import { iconForTool } from "@/lib/toolIcons";
+import { iconForTool, labelForTool } from "@/lib/toolIcons";
 import { cn } from "@/lib/utils";
 
 export type ToolChipStatus = "running" | "done" | "error";
@@ -23,6 +23,7 @@ export function ToolCallChip({
   result,
   delegation,
 }: Props) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
   const argsText = (() => {
@@ -64,7 +65,7 @@ export function ToolCallChip({
           <AlertTriangle className="h-3 w-3 shrink-0" />
         )}
         <ToolIcon className="h-3 w-3 shrink-0 opacity-60" />
-        <span className="font-mono">{name}</span>
+        <span title={name}>{labelForTool(name)}</span>
         {canExpand && (
           <ChevronRight
             className={cn(
@@ -81,7 +82,7 @@ export function ToolCallChip({
         <div className="mt-1 flex flex-col gap-1.5 text-xs">
           {argsText && (
             <div>
-              <div className="opacity-60">Arguments</div>
+              <div className="opacity-60">{t("chat.toolArguments")}</div>
               <pre className="mt-0.5 max-h-32 overflow-auto rounded-sm bg-background/60 p-1.5 font-mono whitespace-pre-wrap">
                 {argsText}
               </pre>
@@ -90,7 +91,7 @@ export function ToolCallChip({
           {result && (
             <div>
               <div className="opacity-60">
-                {status === "error" ? "Error" : "Result"}
+                {status === "error" ? t("chat.toolError") : t("chat.toolResult")}
               </div>
               <pre className="mt-0.5 max-h-40 overflow-auto rounded-sm bg-background/60 p-1.5 font-mono whitespace-pre-wrap">
                 {result.length > 2000 ? `${result.slice(0, 2000)}\n…` : result}
